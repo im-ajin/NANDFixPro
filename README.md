@@ -1,0 +1,120 @@
+# NAND Fix Pro
+
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/YOUR_USERNAME/NAND-Fix-Pro/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows-0078D4.svg)](https://www.microsoft.com/windows/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+A comprehensive GUI tool for Nintendo Switch NAND repair, designed to simplify complex recovery processes into a user-friendly, step-by-step interface.
+
+
+NAND Fix Pro provides three distinct levels of repair, from a simple system file restore that preserves your data to a complete NAND reconstruction for catastrophic failures. It automates the use of essential community tools like **EmmcHaccGen**, **NxNandManager**, and **OSFMount** behind a clean and safe interface.
+
+---
+
+## Features
+
+-   **Three-Tiered Repair System**: Choose the right level of repair for your specific issue.
+-   **User-Friendly GUI**: A modern, dark-themed interface that guides you through every step. No command-line knowledge required.
+-   **Automatic Path Detection**: The application automatically finds its required tools from the `lib` folder.
+-   **Safety First**: Critical actions require user confirmation to prevent accidental data loss. Buttons remain disabled until all required files and paths are correctly configured.
+-   **Erista & Mariko Support**: Automatically detects the console model from its PRODINFO and applies the correct settings for boot file generation.
+-   **Automated Dependency Management**: The included launcher ensures Python and required libraries are installed automatically.
+-   **Built-in Admin Elevation**: Automatically prompts for administrator rights, which are required for direct eMMC access.
+-   **Robust Logging**: All operations are logged to the screen and saved in an `error_log.txt` on crash, making troubleshooting easy.
+
+---
+
+## The Three Levels of Repair
+
+####  livello 1: System Restore (Data Preserved)
+* **What it does**: Dumps the SYSTEM partition from your Switch, replaces the core OS files with clean ones generated from your firmware, and flashes it back.
+* **When to use it**: Ideal for fixing boot issues caused by a failed system update, a bad custom theme, or general software corruption where your save games and installed titles are still intact.
+* **Outcome**: Your console's OS is repaired, and all your user data (saves, games, profiles) is preserved.
+
+####  livello 2: Full Rebuild (User Data Erased)
+* **What it does**: Uses your Switch's unique PRODINFO to rebuild the entire NAND using clean, pre-packaged donor partitions.
+* **When to use it**: Use this when multiple partitions (not just SYSTEM) are corrupt, but your console's PRODINFO is still readable and intact.
+* **Outcome**: Your console is restored to a factory-like state. **All user data will be erased.**
+
+####  livello 3: Complete Recovery (Last Resort)
+* **What it does**: Reconstructs a complete NAND from scratch using a **donor PRODINFO file** and a pre-built NAND skeleton. It automatically detects the eMMC size (32GB/64GB) to use the correct template.
+* **When to use it**: This is the final option for a completely dead or lost NAND where even the original PRODINFO is gone or corrupt.
+* **Outcome**: A brand new, functional NAND is written to the eMMC. **This is a total overwrite.**
+
+---
+
+## Prerequisites
+
+Before using this tool, you will need to provide:
+
+1.  **Your Keys File**: A `prod.keys` file dumped from your own console.
+2.  **Firmware Files**: A folder containing the extracted firmware for the version you wish to install.
+3.  **(Level 3 Only)**: A decrypted donor `PRODINFO` file if your original is lost.
+
+All other required tools and donor partitions are included in the release package.
+
+---
+
+## Usage
+
+Getting started is designed to be as simple as possible.
+
+1.  Download the `NAND-Fix-Pro-v1.0.0.zip` file from the [latest release page](https://github.com/YOUR_USERNAME/NAND-Fix-Pro/releases).
+2.  Extract the entire contents of the ZIP file to a folder on your computer.
+3.  Simply **double-click the `launcher.exe`** file.
+
+The launcher will automatically perform a one-time setup:
+-   It will install an embedded, portable version of Python.
+-   It will install the necessary Python dependencies (`wmi`).
+-   It will then start the NAND Fix Pro application for you.
+
+---
+
+## File Structure
+
+The tool relies on a specific folder structure to function correctly. Ensure your extracted folder looks like this:
+
+```
+NAND-Fix-Pro/
+│
+├── launcher.exe
+├── nandfixpro.py
+│
+└───lib/
+    ├── 7z/
+    │   └── 7z.exe
+    ├── EmmcHaccGen/
+    │   └── EmmcHaccGen.exe
+    ├── NxNandManager/
+    │   └── NxNandManager.exe
+    │
+    └───NAND/
+        ├── donor32.7z
+        ├── donor64.7z
+        ├── PRODINFOF.7z
+        ├── SAFE.7z
+        ├── SYSTEM.7z
+        ├── USER-32.7z
+        └── USER-64.7z
+```
+
+---
+
+## ⚠️ Disclaimer
+
+This tool interacts directly with your console's internal memory (eMMC). While it includes safety measures, any interruption during a write process (e.g., power loss, cable disconnection) or use of incorrect files can lead to a **permanent brick**.
+
+-   **You are using this tool at your own risk.**
+-   Always make a full NAND backup with Hekate before attempting any repairs.
+-   The author is not responsible for any damage to your console.
+
+---
+
+## Acknowledgements
+
+This application is a graphical frontend that would not be possible without the foundational work of these incredible tools and the teams behind them:
+
+-   **[EmmcHaccGen](https://github.com/suchmememanymuch/EmmcHaccGen)** by suchmememanymuch
+-   **[NxNandManager](https://github.com/eliboa/NxNandManager)** by eliboa
+-   **[OSFMount](https://www.osforensics.com/tools/mount-disk-images.html)** by PassMark Software
+-   **[7-Zip](https://www.7-zip.org/)** by Igor Pavlov
