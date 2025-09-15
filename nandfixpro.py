@@ -957,8 +957,27 @@ class SwitchGuiApp(tk.Tk):
 
     def _select_path(self, key, type):
         path = ""
-        if type == "file": path = filedialog.askopenfilename(title=f"Select {key.replace('_', ' ').title()} File")
-        elif type == "folder": path = filedialog.askdirectory(title=f"Select {key.replace('_', ' ').title()} Folder")
+        if type == "file":
+            # Define specific file type filters for different selections
+            file_filters = {
+                "7z": [("7-Zip Executable", "7z.exe"), ("Executable", "*.exe"), ("All files", "*.*")],
+                "osfmount": [("OSFMount Command", "OSFMount.com"), ("Command File", "*.com"), ("All files", "*.*")],
+                "nxnandmanager": [("NxNandManager Executable", "NxNandManager.exe"), ("Executable", "*.exe"), ("All files", "*.*")],
+                "emmchaccgen": [("EmmcHaccGen Files", "*.exe *.ini"), ("Executable", "*.exe"), ("INI File", "*.ini"), ("All files", "*.*")],
+                "keys": [("Keys File", "*.keys"), ("All files", "*.*")],
+                "prodinfo": [("PRODINFO File", "*.*")]
+            }
+            # Get the filter for the current selection key
+            current_filter = file_filters.get(key)
+            
+            path = filedialog.askopenfilename(
+                title=f"Select {key.replace('_', ' ').title()} File",
+                filetypes=current_filter
+            )
+
+        elif type == "folder":
+            path = filedialog.askdirectory(title=f"Select {key.replace('_', ' ').title()} Folder")
+        
         if path: 
             self.paths[key].set(os.path.normpath(path))
             self._save_config()
