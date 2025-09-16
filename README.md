@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/sthetix/NANDFixPro/main/images/title.png" alt="Title Image" width="50%">
+  <img src="https://raw.githubusercontent.com/sthetix/NANDFixPro/main/images/title.png" alt="Title Image" width="75%">
 </p>
 
 A comprehensive GUI tool for Nintendo Switch NAND repair, designed to simplify complex recovery processes into a user-friendly, step-by-step interface.
