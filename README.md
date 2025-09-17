@@ -26,6 +26,7 @@ NAND Fix Pro provides three distinct levels of repair, from a simple system file
 -   **Automated Dependency Management**: The included launcher ensures Python and required libraries are installed automatically.
 -   **Built-in Admin Elevation**: Automatically prompts for administrator rights, which are required for direct eMMC access.
 -   **Robust Logging**: All operations are logged to the screen and saved in an `error_log.txt` on crash, making troubleshooting easy.
+-   **Disk Space Validation**: Automatically checks for sufficient free space (60GB) before starting any repair process.
 
 ---
 
@@ -65,9 +66,9 @@ All other required tools and donor partitions are included in the release packag
 Getting started is designed to be as simple as possible.
 
 ### 1. Prepare Your Console and Files
-* First, you need to get your unique console files. Use **Lockpick RCM** to dump your `prod.keys` file. **You must copy this file from your Switch's SD card to your computer**, as the tool needs it for all operations.
+* **CRITICAL: Create a full NAND backup using Hekate before doing anything else.** This is your essential safety net and must be done regardless of which repair level you plan to use. Without this backup, you cannot recover if something goes wrong.
+* Get your unique console files. Use **Lockpick RCM** to dump your `prod.keys` file. **You must copy this file from your Switch's SD card to your computer**, as the tool needs it for all operations.
 * If you're performing a **Level 3: Complete Recovery**, you will also need a decrypted **donor** `PRODINFO` file. If you used the `prodinfo_gen` tool to create one, **ensure you copy this file to your computer as well**.
-* **Create a full NAND backup** using Hekate before you do anything else. This is your critical safety net in case something goes wrong.
 * Prepare a USB cable to connect your Switch to your computer.
 
 ### 2. Connect and Configure with Hekate
@@ -100,7 +101,7 @@ The tool relies on a specific folder structure to function correctly. Ensure you
 ```
 NAND-Fix-Pro/
 │
-├── launcher.exe
+├── NANDFixPro.exe
 ├── nandfixpro.py
 │
 └───lib/

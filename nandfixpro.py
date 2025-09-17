@@ -103,7 +103,7 @@ class CustomDialog(tk.Toplevel):
 class SwitchGuiApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.version = "1.0.0"
+        self.version = "1.0.1"
         self.title(f"NAND Fix Pro v{self.version}")
         self.geometry("800x800")
         self.resizable(False, False)
@@ -224,6 +224,31 @@ class SwitchGuiApp(tk.Tk):
         if not path_str:
             return False
         return Path(path_str).exists()
+    
+    def _check_disk_space(self, required_gb=58):
+        """Check if there's enough free space on the system drive"""
+        try:
+            import shutil
+            # Check the temp directory drive (usually C:)
+            temp_dir = tempfile.gettempdir()
+            free_bytes = shutil.disk_usage(temp_dir).free
+            free_gb = free_bytes / (1024**3)
+            
+            if free_gb < required_gb:
+                self._log(f"ERROR: Insufficient disk space. Need {required_gb}GB, have {free_gb:.1f}GB available")
+                CustomDialog(self, title="Insufficient Disk Space", 
+                            message=f"Not enough free space on your system drive.\n\n" +
+                                    f"Required: {required_gb}GB\n" +
+                                    f"Available: {free_gb:.1f}GB\n\n" +
+                                    f"Please free up disk space and try again.")
+                return False
+            
+            self._log(f"--- Disk space check: {free_gb:.1f}GB available (Required: {required_gb}GB)")
+            return True
+            
+        except Exception as e:
+            self._log(f"WARNING: Could not check disk space. {e}")
+            return True  # Continue if check fails
 
     def _validate_paths_and_update_buttons(self):
         """Checks required paths for each level and enables/disables buttons."""
@@ -243,6 +268,49 @@ class SwitchGuiApp(tk.Tk):
             self.start_level3_button.config(state="normal" if level3_ok else "disabled")
         
         self.update_idletasks()
+
+    def _save_log(self):
+        """Save the current log contents to a file."""
+        try:
+            from tkinter import filedialog
+            # Get current timestamp for default filename
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            default_filename = f"nand_fix_log_{timestamp}.txt"
+            
+            # Open save dialog - use initialfile instead of initialvalue
+            file_path = filedialog.asksaveasfilename(
+                title="Save Log File",
+                defaultextension=".txt",
+                filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+                initialfile=default_filename
+            )
+            
+            if file_path:
+                # Get all text from the log widget
+                log_content = self.log_widget.get("1.0", tk.END)
+                
+                # Write to file
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(f"NAND Fix Pro v{self.version} - Log Export\n")
+                    f.write(f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write("="*50 + "\n\n")
+                    f.write(log_content)
+                
+                self._log(f"SUCCESS: Log saved to {file_path}")
+                
+        except Exception as e:
+            self._log(f"ERROR: Failed to save log file. {e}")   
+
+
+    def _clear_log(self):
+        """Clear all content from the log widget."""
+        try:
+            self.log_widget.config(state="normal")
+            self.log_widget.delete("1.0", tk.END)
+            self.log_widget.config(state="disabled")
+            self._log("Log cleared")
+        except Exception as e:
+            self._log(f"ERROR: Failed to clear log. {e}")        
 
     def _auto_detect_paths(self):
         try: script_dir = Path(__file__).parent
@@ -290,11 +358,23 @@ class SwitchGuiApp(tk.Tk):
         log_frame = ttk.LabelFrame(self, text="Log Output", padding="10")
         log_frame.pack(padx=15, pady=(5, 15), fill="both", expand=True)
         log_frame.columnconfigure(0, weight=1)
+        log_frame.rowconfigure(0, weight=1)
+
         self.log_widget = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD, height=15, state="disabled",
             bg="#1e1e1e", fg="#d4d4d4", relief="flat", borderwidth=2,
             font=("Consolas", 10), insertbackground="#d4d4d4"
         )
         self.log_widget.grid(row=0, column=0, sticky="nsew")
+
+        # Add button frame for Save and Clear buttons
+        button_frame = ttk.Frame(log_frame)
+        button_frame.grid(row=1, column=0, pady=(10, 0), sticky="e")
+
+        clear_log_button = ttk.Button(button_frame, text="Clear Log", command=self._clear_log, style="TButton")
+        clear_log_button.pack(side=tk.LEFT, padx=(0, 10))
+
+        save_log_button = ttk.Button(button_frame, text="Save Log", command=self._save_log, style="TButton")
+        save_log_button.pack(side=tk.LEFT)
 
     def _create_path_selector_row(self, parent, key, label_text, type):
         row = parent.grid_size()[1]
@@ -384,118 +464,63 @@ class SwitchGuiApp(tk.Tk):
         but replacing 'registered' and 'save' folders entirely.
         """
         try:
-            self._log("--- Starting selective SYSTEM merge...")
-            
-            # Debug: Show what we're starting with
-            self._log("--- Existing Contents structure:")
+            self._log("--- Updating SYSTEM partition...")
+
             contents_dest = drive_letter / "Contents"
-            if contents_dest.exists():
-                for item in contents_dest.iterdir():
-                    item_type = "DIR" if item.is_dir() else "FILE"
-                    self._log(f"  Existing: {item_type} - {item.name}")
-            
-            # Check for existing save folder
             save_dest = drive_letter / "save"
-            if save_dest.exists():
-                self._log("--- Existing 'save' folder found at root level")
             
-            # Process each top-level item from source
+            # Process Contents folder with subfolder-level merging
             for source_item in source_system_path.iterdir():
                 dest_item = drive_letter / source_item.name
                 
                 if source_item.name == "Contents":
                     # Handle Contents folder with subfolder-level merging
-                    self._log("--- Processing Contents folder with preservation...")
-                    
-                    # Ensure Contents directory exists
                     contents_dest.mkdir(exist_ok=True)
                     
-                    # Step 1: Remove ONLY the registered folder if it exists
+                    # Remove ONLY the registered folder if it exists
                     registered_dest = contents_dest / "registered"
                     if registered_dest.exists():
-                        self._log("--- Removing old 'registered' folder...")
                         shutil.rmtree(registered_dest)
-                        self._log("--- Old 'registered' folder removed.")
                     
-                    # Step 2: Copy each item from source Contents individually
+                    # Copy each item from source Contents individually
                     source_contents = source_item
                     for contents_subitem in source_contents.iterdir():
                         dest_subitem = contents_dest / contents_subitem.name
                         
                         if contents_subitem.name == "registered":
                             # Copy the new registered folder
-                            self._log("--- Copying NEW 'registered' folder...")
                             if contents_subitem.is_dir():
                                 shutil.copytree(contents_subitem, dest_subitem)
                             else:
                                 shutil.copy2(contents_subitem, dest_subitem)
-                            self._log(f"--- SUCCESS: 'registered' folder copied with {len(list(contents_subitem.iterdir()))} items")
                         
                         elif not dest_subitem.exists():
                             # Copy new items (like placehld) that don't exist
-                            self._log(f"--- Copying new Contents item: {contents_subitem.name}")
                             if contents_subitem.is_dir():
                                 shutil.copytree(contents_subitem, dest_subitem)
                             else:
                                 shutil.copy2(contents_subitem, dest_subitem)
-                        
-                        else:
-                            # Preserve existing items (like savemeta)
-                            self._log(f"--- PRESERVING existing Contents item: {contents_subitem.name}")
                 
                 elif source_item.name == "save":
                     # Handle save folder - ALWAYS replace entirely
-                    self._log("--- Processing 'save' folder - REPLACING entirely...")
                     if save_dest.exists():
-                        self._log("--- Removing old 'save' folder...")
                         shutil.rmtree(save_dest)
-                        self._log("--- Old 'save' folder removed.")
                     
                     # Copy the new save folder
-                    self._log("--- Copying NEW 'save' folder...")
                     if source_item.is_dir():
                         shutil.copytree(source_item, save_dest)
-                        save_files = list(source_item.iterdir())
-                        self._log(f"--- SUCCESS: 'save' folder copied with {len(save_files)} files")
-                        for save_file in save_files:
-                            self._log(f"         - {save_file.name}")
                     else:
                         shutil.copy2(source_item, save_dest)
-                        self._log("--- SUCCESS: 'save' file copied")
                 
                 else:
-                    # Handle other top-level items (outside Contents and save folders)
+                    # Handle other top-level items
                     if not dest_item.exists():
-                        self._log(f"--- Copying new top-level item: {source_item.name}")
                         if source_item.is_dir():
                             shutil.copytree(source_item, dest_item)
                         else:
                             shutil.copy2(source_item, dest_item)
-                    else:
-                        self._log(f"--- PRESERVING existing top-level item: {source_item.name}")
             
-            # Debug: Show final structure
-            self._log("--- Final Contents structure:")
-            if contents_dest.exists():
-                for item in contents_dest.iterdir():
-                    item_type = "DIR" if item.is_dir() else "FILE"
-                    size_info = ""
-                    if item.is_dir():
-                        try:
-                            file_count = len(list(item.iterdir()))
-                            size_info = f" ({file_count} items)"
-                        except:
-                            size_info = " (access error)"
-                    self._log(f"  Final: {item_type} - {item.name}{size_info}")
-            
-            # Debug: Show final save structure
-            if save_dest.exists():
-                self._log("--- Final 'save' folder structure:")
-                for item in save_dest.iterdir():
-                    item_type = "DIR" if item.is_dir() else "FILE"
-                    self._log(f"  Save: {item_type} - {item.name}")
-            
-            self._log("--- SUCCESS: Selective SYSTEM merge completed (savemeta preserved, save folder replaced)")
+            self._log("--- SYSTEM partition updated successfully")
             return True
             
         except Exception as e:
@@ -583,6 +608,10 @@ class SwitchGuiApp(tk.Tk):
         self._log("\n--- WARNING ---")
         self._log("Level 3 will completely overwrite your Switch's eMMC with a reconstructed NAND.")
         self._log("This is irreversible. Ensure you have backups and a stable connection.")
+
+        # ADD THIS LINE:
+        if not self._check_disk_space(60): 
+            return
         
         self._log("\n[STEP 1/8] Please connect your Switch in Hekate's eMMC RAW GPP mode (Read-Only OFF).")
         self._log("--- Detecting target eMMC...")
@@ -710,7 +739,7 @@ class SwitchGuiApp(tk.Tk):
             source_system_path = versioned_folder / "SYSTEM"
             
             # For Level 3, complete replacement of specific folders
-            self._log("--- Performing Level 3 SYSTEM modification (complete replacement)...")
+            self._log("--- Modifying SYSTEM partition for Level 3...")
             
             # Replace Contents/registered completely
             registered_dest = drive_letter / "Contents" / "registered"
@@ -733,7 +762,7 @@ class SwitchGuiApp(tk.Tk):
                 for save_file in save_files:
                     self._log(f"         - {save_file.name}")
             
-            self._log("--- SUCCESS: SYSTEM partition modified for Level 3")
+            self._log("--- SYSTEM partition modification complete")
             
         except Exception as e:
             self._log(f"ERROR: Failed to modify SYSTEM partition. Error: {e}")
@@ -1057,136 +1086,67 @@ class SwitchGuiApp(tk.Tk):
 
     def _selective_copy_system_contents_level1(self, source_system_path, drive_letter):
         """
-        Level 1: Simple approach - delete registered folder, copy Contents from EmmcHaccGen, skip save folder
+        Level 1: Replace system files while preserving user data
         """
         try:
-            self._log("--- Starting Level 1 selective SYSTEM merge...")
+            self._log("--- Updating system partition...")
             
-            # Show what exists before merge
-            self._log("--- BEFORE merge - existing structure:")
-            save_dest = drive_letter / "save"
-            original_save_count = 0
-            if save_dest.exists():
-                original_save_count = len(list(save_dest.iterdir()))
-                
-            for item in drive_letter.iterdir():
-                if item.is_dir():
-                    try:
-                        count = len(list(item.iterdir()))
-                        self._log(f"  Existing: DIR - {item.name} ({count} items)")
-                    except:
-                        self._log(f"  Existing: DIR - {item.name}")
-                else:
-                    self._log(f"  Existing: FILE - {item.name}")
-            
-            # Step 1: Delete existing Contents/registered folder completely
+            # Delete existing Contents/registered folder
             registered_dest = drive_letter / "Contents" / "registered"
             if registered_dest.exists():
-                self._log(f"--- Deleting ALL files in 'Contents/registered' folder...")
                 shutil.rmtree(registered_dest)
-                self._log("--- 'Contents/registered' folder emptied.")
             
-            # Step 2: Copy ONLY Contents folder from EmmcHaccGen (this replaces registered, preserves placehld)
+            # Copy Contents folder from EmmcHaccGen
             contents_source = source_system_path / "Contents"
             contents_dest = drive_letter / "Contents"
             
             if contents_source.exists():
-                self._log("--- Copying Contents folder from EmmcHaccGen...")
-                # Ensure Contents directory exists
                 contents_dest.mkdir(exist_ok=True)
-                
-                # Copy each item from source Contents
                 for contents_item in contents_source.iterdir():
                     source_item = contents_item
                     dest_item = contents_dest / contents_item.name
                     
                     if source_item.is_dir():
-                        self._log(f"--- Copying Contents subdirectory: {contents_item.name}")
-                        # Remove destination first to ensure clean replacement
                         if dest_item.exists():
                             shutil.rmtree(dest_item)
-                        shutil.copytree(source_item, dest_item)  # No dirs_exist_ok - clean replacement
+                        shutil.copytree(source_item, dest_item)
                     else:
-                        self._log(f"--- Copying Contents file: {contents_item.name}")
                         shutil.copy2(source_item, dest_item)
             
-            # Step 3: Update specific system save files from EmmcHaccGen
+            # Update system save files
             save_source = source_system_path / "save"
+            save_dest = drive_letter / "save"
             if save_source.exists():
-                self._log("--- Updating system save files from EmmcHaccGen...")
                 save_dest.mkdir(exist_ok=True)
-                
-                # Copy each save file from EmmcHaccGen (overwrites existing system saves)
-                files_updated = 0
                 for save_file in save_source.iterdir():
-                    source_save = save_file
-                    dest_save = save_dest / save_file.name
-                    
-                    if source_save.is_file():
-                        shutil.copy2(source_save, dest_save)
-                        files_updated += 1
-                        self._log(f"--- Updated system save: {save_file.name}")
-                
-                self._log(f"--- Updated {files_updated} system save files")
+                    if save_file.is_file():
+                        shutil.copy2(save_file, save_dest / save_file.name)
             
-            # Step 4: Handle any other top-level items from EmmcHaccGen (if any exist)
+            # Handle other top-level items
             for src_item in source_system_path.iterdir():
                 if src_item.name in ["Contents", "save"]:
-                    continue  # Already handled or skipped above
-                    
+                    continue
                 dest_item = drive_letter / src_item.name
                 if not dest_item.exists():
-                    self._log(f"--- Adding new top-level item: {src_item.name}")
                     if src_item.is_dir():
                         shutil.copytree(src_item, dest_item)
                     else:
                         shutil.copy2(src_item, dest_item)
             
-            # Show what exists after merge
-            self._log("--- AFTER merge - final structure:")
-            final_save_count = 0
-            for item in drive_letter.iterdir():
-                if item.is_dir():
-                    try:
-                        count = len(list(item.iterdir()))
-                        if item.name == "save":
-                            final_save_count = count
-                        self._log(f"  Final: DIR - {item.name} ({count} items)")
-                    except:
-                        self._log(f"  Final: DIR - {item.name}")
-                else:
-                    self._log(f"  Final: FILE - {item.name}")
-            
-            # Verify save folder was not touched
-            if final_save_count == original_save_count:
-                self._log(f"--- ✅ CONFIRMED: Save folder untouched ({original_save_count} files preserved)")
-            else:
-                self._log(f"--- ⚠️ WARNING: Save count changed from {original_save_count} to {final_save_count}")
-            
-            # Show Contents subdirectories
-            contents_dir = drive_letter / "Contents"
-            if contents_dir.exists():
-                self._log("--- Contents subdirectories:")
-                for item in contents_dir.iterdir():
-                    if item.is_dir():
-                        try:
-                            count = len(list(item.iterdir()))
-                            self._log(f"    {item.name} ({count} items)")
-                        except:
-                            self._log(f"    {item.name}")
-            
-            self._log("--- SUCCESS: System files replaced, save data completely preserved.")
+            self._log("--- System partition updated successfully")
             return True
             
         except Exception as e:
-            self._log(f"ERROR: Failed Level 1 merge. Error: {e}")
-            self._log(traceback.format_exc())
+            self._log(f"ERROR: Failed to update system partition. {e}")
             return False
 
     def _run_level1_process(self, temp_dir):
         # This function and the ones below are unchanged but included for completeness.
         self._log("\n--- WARNING ---")
         self._log("The Level 1 process will write directly to your Switch's eMMC.")
+
+        if not self._check_disk_space(60):
+            return
         
         self._log("\n[STEP 1/8] Please connect your Switch in Hekate's eMMC RAW GPP mode (Read-Only OFF).")
         nx_exe = self.paths['nxnandmanager'].get()
@@ -1247,7 +1207,7 @@ class SwitchGuiApp(tk.Tk):
         if not system_dec_path.exists(): return self._log("ERROR: SYSTEM file was not created.")
         self._log("SUCCESS: SYSTEM partition decrypted.")
         
-        self._log(f"--- Mounting SYSTEM partition to modify...")
+        self._log("--- Mounting SYSTEM partition...")
         osfmount_cmd = [self.paths['osfmount'].get(), '-a', '-t', 'file', '-f', str(system_dec_path), '-o', 'rw', '-m', '#:']
         return_code, output = self._run_command(osfmount_cmd)
         if return_code != 0: return
@@ -1255,7 +1215,7 @@ class SwitchGuiApp(tk.Tk):
         if not match: return self._log("ERROR: Could not determine drive letter.")
         drive_letter_str = match.group(1)
         drive_letter = Path(drive_letter_str)
-        self._log(f"--- SUCCESS: Image mounted to {drive_letter}")
+        self._log("--- SYSTEM partition mounted")
 
         try:
             versioned_folder = next(d for d in emmchaccgen_out_dir.iterdir() if d.is_dir())
@@ -1269,7 +1229,7 @@ class SwitchGuiApp(tk.Tk):
         except Exception as e:
             return self._log(f"ERROR: Failed to modify SYSTEM partition contents. Error: {e}")
         finally:
-            self._log(f"--- Dismounting drive...")
+            self._log("--- Dismounting SYSTEM partition...")
             self._run_command([self.paths['osfmount'].get(), '-D', '-m', drive_letter_str])
 
         self._log(f"\n[STEP 5 & 6/8] Flashing modified SYSTEM back to eMMC...")
@@ -1296,6 +1256,11 @@ class SwitchGuiApp(tk.Tk):
         self._log(f"SUCCESS: BOOT0 and BOOT1 saved. Please flash them manually using Hekate.")
         self._log("\n--- LEVEL 1 IN-PLACE RESTORE COMPLETE ---")
 
+        CustomDialog(self, title="Level 1 Complete", 
+            message="Level 1 restore completed successfully!\n\n" +
+                    "Don't forget to flash BOOT0 and BOOT1 using Hekate.\n\n" +
+                    "Your Switch should now boot normally.")
+
     def _run_and_interrupt_flash(self, command, partition_name, target_mb):
         self._log(f"--- Starting partial flash for {partition_name} with a {target_mb}MB target...")
         try:
@@ -1321,6 +1286,10 @@ class SwitchGuiApp(tk.Tk):
     def _run_level2_process(self, temp_dir):
         self._log("\n--- WARNING ---")
         self._log("The Level 2 process will write directly to your Switch's eMMC.")
+
+        # ADD THIS LINE:
+        if not self._check_disk_space(60):
+            return
 
         self._log("\n[STEP 1/7] Detecting eMMC...")
         nx_exe = self.paths['nxnandmanager'].get()
@@ -1449,6 +1418,11 @@ class SwitchGuiApp(tk.Tk):
         shutil.copy(versioned_folder / "BOOT1.bin", output_folder / "BOOT1")
         self._log(f"SUCCESS: BOOT0 and BOOT1 saved. Please flash them manually using Hekate.")
         self._log("\n--- LEVEL 2 IN-PLACE REBUILD COMPLETE ---")
+
+        CustomDialog(self, title="Level 2 Complete", 
+            message="Level 2 rebuild completed successfully!\n\n" +
+                    "Don't forget to flash BOOT0 and BOOT1 using Hekate.\n\n" +
+                    "Your Switch should now boot normally.")
 
 def is_admin():
     try: return ctypes.windll.shell32.IsUserAnAdmin()
