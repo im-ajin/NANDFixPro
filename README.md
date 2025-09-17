@@ -80,7 +80,7 @@ Getting started is designed to be as simple as possible.
 ### 3. Run the Tool
 * Download the `NAND-Fix-Pro-v1.0.0.zip` file from the [latest release page](https://github.com/sthetix/NANDFixPro/releases).
 * Extract the entire contents of the ZIP file to a folder on your computer.
-* Simply **double-click the `launcher.exe`** file.
+* Simply **double-click the `NANDFixPro.exe`** file.
 
 The launcher will automatically perform a one-time setup:
 - It will install an embedded, portable version of Python.
