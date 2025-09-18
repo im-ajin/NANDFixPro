@@ -115,6 +115,7 @@ class SwitchGuiApp(tk.Tk):
             "nxnandmanager": tk.StringVar(), "keys": tk.StringVar(), "firmware": tk.StringVar(),
             "prodinfo": tk.StringVar(), "partitions_folder": tk.StringVar(),
             "output_folder": tk.StringVar(), "emmchaccgen": tk.StringVar(),
+            "temp_directory": tk.StringVar(),
         }
         self.level_requirements = {
             1: ["firmware", "keys", "output_folder", "7z", "emmchaccgen", "nxnandmanager", "osfmount"],
@@ -225,30 +226,34 @@ class SwitchGuiApp(tk.Tk):
             return False
         return Path(path_str).exists()
     
-    def _check_disk_space(self, required_gb=58):
-        """Check if there's enough free space on the system drive"""
+    def _check_disk_space(self, required_gb=60):
         try:
             import shutil
-            # Check the temp directory drive (usually C:)
-            temp_dir = tempfile.gettempdir()
+            # Use custom temp directory if set, otherwise use system default
+            if self.paths['temp_directory'].get():
+                temp_dir = self.paths['temp_directory'].get()
+            else:
+                temp_dir = tempfile.gettempdir()
+                
             free_bytes = shutil.disk_usage(temp_dir).free
             free_gb = free_bytes / (1024**3)
             
             if free_gb < required_gb:
-                self._log(f"ERROR: Insufficient disk space. Need {required_gb}GB, have {free_gb:.1f}GB available")
+                self._log(f"ERROR: Insufficient disk space on {temp_dir}. Need {required_gb}GB, have {free_gb:.1f}GB available")
                 CustomDialog(self, title="Insufficient Disk Space", 
-                            message=f"Not enough free space on your system drive.\n\n" +
+                            message=f"Not enough free space on the selected drive.\n\n" +
+                                    f"Drive: {temp_dir}\n" +
                                     f"Required: {required_gb}GB\n" +
                                     f"Available: {free_gb:.1f}GB\n\n" +
-                                    f"Please free up disk space and try again.")
+                                    f"Please free up space or select a different temp directory in Settings.")
                 return False
             
-            self._log(f"--- Disk space check: {free_gb:.1f}GB available (Required: {required_gb}GB)")
+            self._log(f"--- Disk space check: {free_gb:.1f}GB available on {temp_dir}")
             return True
             
         except Exception as e:
             self._log(f"WARNING: Could not check disk space. {e}")
-            return True  # Continue if check fails
+            return True
 
     def _validate_paths_and_update_buttons(self):
         """Checks required paths for each level and enables/disables buttons."""
@@ -594,14 +599,28 @@ class SwitchGuiApp(tk.Tk):
     def _start_level3_process(self):
         self._log("--- Starting Level 3 Complete Recovery Process ---")
         try:
-            with tempfile.TemporaryDirectory(prefix="switch_gui_level3_") as temp_dir:
-                self._log(f"INFO: Created temporary directory at: {temp_dir}")
-                self._run_level3_process(temp_dir)
+            # Use custom temp directory if set
+            if self.paths['temp_directory'].get():
+                temp_base = self.paths['temp_directory'].get()
+                temp_dir_name = f"switch_gui_level3_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                temp_dir = os.path.join(temp_base, temp_dir_name)
+                os.makedirs(temp_dir, exist_ok=True)
+                self._log(f"INFO: Using custom temporary directory at: {temp_dir}")
+                try:
+                    self._run_level3_process(temp_dir)
+                finally:
+                    # Clean up manually created temp directory
+                    if os.path.exists(temp_dir):
+                        shutil.rmtree(temp_dir)
+                        self._log(f"INFO: Cleaned up temporary directory: {temp_dir}")
+            else:
+                with tempfile.TemporaryDirectory(prefix="switch_gui_level3_") as temp_dir:
+                    self._log(f"INFO: Created temporary directory at: {temp_dir}")
+                    self._run_level3_process(temp_dir)
         except Exception as e:
             self._log(f"An unexpected critical error occurred: {e}\n{traceback.format_exc()}")
             self._log("\nINFO: Level 3 process finished with an error.")
         finally:
-            # Only the action remains, no more logging
             self._re_enable_buttons()
 
     def _run_level3_process(self, temp_dir):
@@ -979,7 +998,8 @@ class SwitchGuiApp(tk.Tk):
         menubar.add_cascade(label="Settings", menu=settings_menu)
         paths_to_show = {"7z": "7-Zip (7z.exe)...", "emmchaccgen": "EmmcHaccGen.exe...",
                             "nxnandmanager": "NxNandManager.exe...", "osfmount": "OSFMount.com...",
-                            "partitions_folder": "Partitions Folder (NAND)..."}
+                            "partitions_folder": "Partitions Folder (NAND)...",
+                            "temp_directory": "Temporary Directory..."}
         for key, text in paths_to_show.items():
             file_type = "file" if ".exe" in text or ".com" in text else "folder"
             settings_menu.add_command(label=f"Set {text}", command=lambda k=key, t=file_type: self._select_path(k, t))
@@ -1071,17 +1091,34 @@ class SwitchGuiApp(tk.Tk):
     def _start_process(self, level):
         self._log(f"--- Starting {level} Process ---")
         try:
-            with tempfile.TemporaryDirectory(prefix="switch_gui_") as temp_dir:
-                self._log(f"INFO: Created temporary directory at: {temp_dir}")
-                if level == "Level 1":
-                    self._run_level1_process(temp_dir)
-                elif level == "Level 2":
-                    self._run_level2_process(temp_dir)
+            # Use custom temp directory if set
+            if self.paths['temp_directory'].get():
+                temp_base = self.paths['temp_directory'].get()
+                temp_dir_name = f"switch_gui_{level.lower().replace(' ', '')}{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                temp_dir = os.path.join(temp_base, temp_dir_name)
+                os.makedirs(temp_dir, exist_ok=True)
+                self._log(f"INFO: Using custom temporary directory at: {temp_dir}")
+                try:
+                    if level == "Level 1":
+                        self._run_level1_process(temp_dir)
+                    elif level == "Level 2":
+                        self._run_level2_process(temp_dir)
+                finally:
+                    # Clean up manually created temp directory
+                    if os.path.exists(temp_dir):
+                        shutil.rmtree(temp_dir)
+                        self._log(f"INFO: Cleaned up temporary directory: {temp_dir}")
+            else:
+                with tempfile.TemporaryDirectory(prefix="switch_gui_") as temp_dir:
+                    self._log(f"INFO: Created temporary directory at: {temp_dir}")
+                    if level == "Level 1":
+                        self._run_level1_process(temp_dir)
+                    elif level == "Level 2":
+                        self._run_level2_process(temp_dir)
         except Exception as e:
             self._log(f"An unexpected critical error occurred: {e}\n{traceback.format_exc()}")
             self._log(f"\nINFO: {level} process finished with an error.")
         finally:
-            # Only the action remains, no more logging
             self._re_enable_buttons()
 
     def _selective_copy_system_contents_level1(self, source_system_path, drive_letter):
