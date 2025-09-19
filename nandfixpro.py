@@ -3,6 +3,7 @@ import traceback
 import datetime
 import tkinter as tk
 
+
 # --- ROBUST ERROR LOGGING AND EXIT ---
 def log_uncaught_exceptions(ex_cls, ex, tb):
     # Log the error to a file
@@ -41,6 +42,7 @@ import subprocess
 import re
 import ctypes
 import configparser
+import pythoncom
 
 # --- CUSTOM DIALOG CLASS (Modernized) ---
 class CustomDialog(tk.Toplevel):
@@ -103,7 +105,7 @@ class CustomDialog(tk.Toplevel):
 class SwitchGuiApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.version = "1.0.1"
+        self.version = "1.0.2"
         self.title(f"NAND Fix Pro v{self.version}")
         self.geometry("800x800")
         self.resizable(False, False)
@@ -130,6 +132,80 @@ class SwitchGuiApp(tk.Tk):
         self._setup_widgets()
         self._validate_paths_and_update_buttons() # Initial check
         self.center_window()
+
+    # In class SwitchGuiApp:
+
+    def _update_progress(self, progress_text):
+        """Displays and updates a progress bar on a single line in the log."""
+        if hasattr(self, 'log_widget') and self.log_widget:
+            self.log_widget.config(state="normal")
+            last_line = self.log_widget.get("end-2l", "end-1l")
+            if last_line.startswith("--- Progress:"):
+                self.log_widget.delete("end-2l", "end-1l")
+            self.log_widget.insert(tk.END, f"--- Progress: {progress_text}\n")
+            self.log_widget.see(tk.END)
+            self.log_widget.config(state="disabled")
+            self.update_idletasks()
+
+    def _run_command_with_progress(self, command, task_name="Processing"):
+        """Runs a command (like 7z) and shows a progress bar by parsing its output."""
+        try:
+            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                        text=True, creationflags=subprocess.CREATE_NO_WINDOW,
+                                        bufsize=1, universal_newlines=True)
+            output = []
+            progress_regex = re.compile(r"(\d+)\s*%\s*\d*") # Regex to find percentage
+
+            for line in iter(process.stdout.readline, ''):
+                clean_line = line.strip()
+                if not clean_line: continue
+                
+                match = progress_regex.search(clean_line)
+                if match:
+                    percent = int(match.group(1))
+                    bar_length = 25
+                    filled_length = int(bar_length * percent / 100)
+                    bar = '█' * filled_length + '-' * (bar_length - filled_length)
+                    self._update_progress(f"{task_name}: [{bar}] {percent}%")
+                else:
+                    output.append(clean_line)
+                    self._log(clean_line)
+            
+            process.stdout.close()
+            return_code = process.wait()
+            self._log(f"--- {task_name} finished.")
+            return return_code, "\n".join(output)
+        except Exception as e:
+            self._log(f"FATAL ERROR: Failed to execute command. {e}")
+            return -1, str(e)
+
+    def _copy_with_progress(self, src_path, dest_path, task_name="Copying file"):
+        """Copies a large file while displaying a progress bar."""
+        try:
+            src_path, dest_path = Path(src_path), Path(dest_path)
+            total_size = src_path.stat().st_size
+            copied_size = 0
+            chunk_size = 1024 * 1024 # 1MB chunks
+
+            with open(src_path, 'rb') as src, open(dest_path, 'wb') as dest:
+                while True:
+                    chunk = src.read(chunk_size)
+                    if not chunk:
+                        break
+                    dest.write(chunk)
+                    copied_size += len(chunk)
+                    
+                    percent = int((copied_size / total_size) * 100)
+                    bar_length = 25
+                    filled_length = int(bar_length * percent / 100)
+                    bar = '█' * filled_length + '-' * (bar_length - filled_length)
+                    self._update_progress(f"{task_name}: [{bar}] {percent}%")
+
+            self._log(f"--- {task_name} finished.")
+            return True
+        except Exception as e:
+            self._log(f"ERROR: File copy failed. {e}")
+            return False    
 
     def center_window(self):
         self.update_idletasks()
@@ -546,34 +622,25 @@ class SwitchGuiApp(tk.Tk):
         
         nand_lib_dir = script_dir / "lib" / "NAND"
         
-        # Determine which donor NAND to use
-        if target_size_gb > 40:  # 64GB eMMC
-            donor_archive = nand_lib_dir / "donor64.7z"
-            donor_bin_name = "rawnand64.bin"
-            self._log("--- Target: 64GB eMMC, using donor64.7z")
-        else:  # 32GB eMMC
-            donor_archive = nand_lib_dir / "donor32.7z"
-            donor_bin_name = "rawnand32.bin"
-            self._log("--- Target: 32GB eMMC, using donor32.7z")
+        if target_size_gb > 40:
+            donor_archive, donor_bin_name, size = (nand_lib_dir / "donor64.7z", "rawnand64.bin", "64GB")
+        else:
+            donor_archive, donor_bin_name, size = (nand_lib_dir / "donor32.7z", "rawnand32.bin", "32GB")
+        self._log(f"--- Target: {size} eMMC, using {donor_archive.name}")
         
-        # Check if donor archive exists
         if not donor_archive.is_file():
             self._log(f"ERROR: Donor NAND archive not found: {donor_archive}")
             return None
         
-        self._log(f"--- Found donor archive: {donor_archive}")
-        
-        # Extract donor NAND to temp directory
         extract_dir = Path(temp_dir) / "donor_extract"
         extract_dir.mkdir(exist_ok=True)
         
-        self._log(f"--- Extracting donor NAND archive...")
-        extract_cmd = [self.paths['7z'].get(), 'x', str(donor_archive), f'-o{extract_dir}']
-        if self._run_command(extract_cmd)[0] != 0:
+        # --- MODIFIED FOR V1.0.2: Progress Bar ---
+        extract_cmd = [self.paths['7z'].get(), 'x', str(donor_archive), f'-o{extract_dir}', '-bsp1', '-y']
+        if self._run_command_with_progress(extract_cmd, f"Extracting {size} donor NAND")[0] != 0:
             self._log("ERROR: Failed to extract donor NAND archive.")
             return None
         
-        # Find the extracted donor NAND file
         donor_nand_path = extract_dir / donor_bin_name
         if not donor_nand_path.is_file():
             self._log(f"ERROR: Expected donor NAND file not found: {donor_nand_path}")
@@ -599,6 +666,7 @@ class SwitchGuiApp(tk.Tk):
     def _start_level3_process(self):
         self._log("--- Starting Level 3 Complete Recovery Process ---")
         try:
+            pythoncom.CoInitialize() # <--- ADD THIS LINE
             # Use custom temp directory if set
             if self.paths['temp_directory'].get():
                 temp_base = self.paths['temp_directory'].get()
@@ -673,7 +741,9 @@ class SwitchGuiApp(tk.Tk):
         # Copy donor skeleton to working directory
         working_nand = Path(temp_dir) / "working_nand.img"
         self._log(f"--- Copying donor NAND skeleton to working directory...")
-        shutil.copy(donor_nand_path, working_nand)
+        # --- MODIFIED FOR V1.0.2: Progress Bar ---
+        if not self._copy_with_progress(donor_nand_path, working_nand, "Copying NAND skeleton"):
+            return
         self._log(f"--- SUCCESS: Working NAND skeleton ready at {working_nand}")
         
         self._log(f"\n[STEP 3/8] Validating donor PRODINFO...")
@@ -726,16 +796,21 @@ class SwitchGuiApp(tk.Tk):
         nx_exe = self.paths['nxnandmanager'].get()
         partitions_folder = Path(self.paths['partitions_folder'].get())
         
-        # Extract and prepare SYSTEM partition
-        self._log("--- Extracting donor SYSTEM partition...")
-        if self._run_command([self.paths['7z'].get(), 'x', str(partitions_folder / "SYSTEM.7z"), f'-o{temp_dir}'])[0] != 0:
-            self._log("ERROR: Failed to extract donor SYSTEM partition.")
+        # --- MODIFIED FOR V1.0.2: Progress Bar for all 7z extractions ---
+        for part_info in [("SYSTEM", "SYSTEM.7z"), ("PRODINFOF", "PRODINFOF.7z"), ("SAFE", "SAFE.7z")]:
+            part_name, archive_name = part_info
+            cmd = [self.paths['7z'].get(), 'x', str(partitions_folder / archive_name), f'-o{temp_dir}', '-bsp1', '-y']
+            if self._run_command_with_progress(cmd, f"Extracting {part_name}")[0] != 0:
+                self._log(f"ERROR: Failed to extract donor {part_name} partition.")
+                return
+
+        user_archive = "USER-64.7z" if target_size_gb > 40 else "USER-32.7z"
+        cmd = [self.paths['7z'].get(), 'x', str(partitions_folder / user_archive), f'-o{temp_dir}', '-bsp1', '-y']
+        if self._run_command_with_progress(cmd, "Extracting USER")[0] != 0:
+            self._log("ERROR: Failed to extract USER partition.")
             return
-        
+
         system_dec_path = Path(temp_dir) / "SYSTEM.dec"
-        if not system_dec_path.exists():
-            self._log("ERROR: SYSTEM.dec was not extracted.")
-            return
         
         # Mount and modify SYSTEM
         self._log("--- Mounting SYSTEM partition for modification...")
@@ -790,70 +865,28 @@ class SwitchGuiApp(tk.Tk):
             self._log("--- Dismounting SYSTEM partition...")
             self._run_command([self.paths['osfmount'].get(), '-D', '-m', drive_letter_str])
         
-        # Extract other required partitions
-        self._log("--- Extracting other donor partitions...")
-        
-        # Extract PRODINFOF
-        if self._run_command([self.paths['7z'].get(), 'x', str(partitions_folder / "PRODINFOF.7z"), f'-o{temp_dir}'])[0] != 0:
-            self._log("ERROR: Failed to extract PRODINFOF partition.")
-            return
-        
-        # Extract SAFE
-        if self._run_command([self.paths['7z'].get(), 'x', str(partitions_folder / "SAFE.7z"), f'-o{temp_dir}'])[0] != 0:
-            self._log("ERROR: Failed to extract SAFE partition.")
-            return
-        
-        # Extract USER partition (size-dependent)
-        if target_size_gb > 40:  # 64GB eMMC
-            user_archive = "USER-64.7z"
-            self._log("--- Using 64GB USER partition")
-        else:  # 32GB eMMC
-            user_archive = "USER-32.7z"
-            self._log("--- Using 32GB USER partition")
-        
-        if self._run_command([self.paths['7z'].get(), 'x', str(partitions_folder / user_archive), f'-o{temp_dir}'])[0] != 0:
-            self._log("ERROR: Failed to extract USER partition.")
-            return
-        
         self._log(f"\n[STEP 6/8] Flashing all partitions to donor NAND skeleton...")
         
-        # Flash PRODINFO (encrypted)
-        self._log("--- Flashing PRODINFO to skeleton...")
-        flash_cmd = [nx_exe, '-i', str(prodinfo_path), '-o', str(working_nand), '-part=PRODINFO', '-e', '-keyset', keyset_path, 'FORCE']
-        if self._run_command(flash_cmd)[0] != 0:
-            self._log("ERROR: Failed to flash PRODINFO to skeleton.")
-            return
-        
-        # Flash PRODINFOF (encrypted)
-        self._log("--- Flashing PRODINFOF to skeleton...")
-        prodinfof_dec_path = Path(temp_dir) / "PRODINFOF.dec"
-        flash_cmd = [nx_exe, '-i', str(prodinfof_dec_path), '-o', str(working_nand), '-part=PRODINFOF', '-e', '-keyset', keyset_path, 'FORCE']
-        if self._run_command(flash_cmd)[0] != 0:
-            self._log("ERROR: Failed to flash PRODINFOF to skeleton.")
-            return
-        
-        # Flash modified SYSTEM (encrypted)
-        self._log("--- Flashing modified SYSTEM to skeleton...")
-        flash_cmd = [nx_exe, '-i', str(system_dec_path), '-o', str(working_nand), '-part=SYSTEM', '-e', '-keyset', keyset_path, 'FORCE']
-        if self._run_command(flash_cmd)[0] != 0:
-            self._log("ERROR: Failed to flash SYSTEM to skeleton.")
-            return
-        
-        # Flash USER (encrypted) - OPTIMIZED
-        self._log("--- Flashing USER to skeleton (Optimized, 100MB)...")
-        user_dec_path = Path(temp_dir) / "USER.dec"
-        flash_cmd = [nx_exe, '-i', str(user_dec_path), '-o', str(working_nand), '-part=USER', '-e', '-keyset', keyset_path, 'FORCE']
-        if self._run_and_interrupt_flash(flash_cmd, "USER", 100) != 0:
-            self._log("ERROR: Failed to partially flash USER to skeleton.")
-            return
-        
-        # Flash SAFE (encrypted)
-        self._log("--- Flashing SAFE to skeleton...")
-        safe_dec_path = Path(temp_dir) / "SAFE.dec"
-        flash_cmd = [nx_exe, '-i', str(safe_dec_path), '-o', str(working_nand), '-part=SAFE', '-e', '-keyset', keyset_path, 'FORCE']
-        if self._run_command(flash_cmd)[0] != 0:
-            self._log("ERROR: Failed to flash SAFE to skeleton.")
-            return
+        partitions_to_flash = {
+            "PRODINFO": prodinfo_path,
+            "PRODINFOF": Path(temp_dir) / "PRODINFOF.dec",
+            "SYSTEM": system_dec_path,
+            "SAFE": Path(temp_dir) / "SAFE.dec",
+            "USER": Path(temp_dir) / "USER.dec"
+        }
+
+        for part_name, part_path in partitions_to_flash.items():
+            self._log(f"--- Flashing {part_name} to skeleton...")
+            flash_cmd = [nx_exe, '-i', str(part_path), '-o', str(working_nand), f'-part={part_name}', '-e', '-keyset', keyset_path, 'FORCE']
+            # Special handling for partial USER flash
+            if part_name == "USER":
+                if self._run_and_interrupt_flash(flash_cmd, "USER", 100) != 0:
+                    self._log(f"ERROR: Failed to partially flash {part_name} to skeleton.")
+                    return
+            else:
+                if self._run_command(flash_cmd)[0] != 0:
+                    self._log(f"ERROR: Failed to flash {part_name} to skeleton.")
+                    return
         
         # Flash BCPKG2 partitions (unencrypted)
         self._log("--- Flashing BCPKG2 partitions to skeleton...")
@@ -872,10 +905,10 @@ class SwitchGuiApp(tk.Tk):
         self._log("SUCCESS: All partitions flashed to donor NAND skeleton.")
         
         self._log(f"\n[STEP 7/8] Writing complete NAND image to target eMMC...")
-        self._log("--- This may take 10-15 minutes. Do not disconnect the Switch.")
+        self._log("--- This may take a few minutes. Do not disconnect the Switch.")
         
         # Raw copy the complete filled skeleton to target eMMC
-        if not self._raw_copy_nand_to_emmc(working_nand, target_path, target_size_gb):
+        if not self._raw_copy_nand_to_emmc(working_nand, target_path):
             self._log("ERROR: Failed to write NAND image to target eMMC.")
             return
         
@@ -895,24 +928,14 @@ class SwitchGuiApp(tk.Tk):
                                 "Don't forget to flash BOOT0 and BOOT1 using Hekate.\n\n" +
                                 "Your Switch should now boot normally.")
     
-    def _raw_copy_nand_to_emmc(self, source_nand, target_drive, target_size_gb):
-        """
-        Raw copy donor NAND image to target eMMC using optimized partial write.
-        Only writes the first ~5GB which covers all essential partitions.
-        USER partition will be blank but gets initialized by the Switch.
-        """
+    def _raw_copy_nand_to_emmc(self, source_nand, target_drive):
+        """Raw copy donor NAND image to target eMMC using optimized partial write of 4GB."""
         try:
             self._log(f"--- Opening source NAND image: {source_nand}")
-            source_size = source_nand.stat().st_size
-            self._log(f"--- Source NAND size: {source_size / (1024**3):.2f} GB")
-
-            # Optimized: Only write first 5GB to cover all essential partitions
-            # USER partition (largest) will be blank but Switch will initialize it
-            copy_size = 5 * (1024**3)  # 5GB should cover all partitions before USER
-            self._log(f"--- OPTIMIZATION: Writing only first 5GB (covers all essential partitions)")
-            self._log(f"--- USER partition will be blank - Switch will initialize it on first boot")
-
-            # Open target drive using os.open for direct access (proven method)
+            # --- MODIFIED FOR V1.0.2: Changed to 4GB ---
+            copy_size = 4 * (1024**3)
+            self._log(f"--- OPTIMIZATION: Writing only first 4GB (covers all essential partitions)")
+            
             self._log(f"--- Opening target drive: {target_drive}")
             try:
                 target_fd = os.open(target_drive, os.O_WRONLY | os.O_BINARY)
@@ -925,11 +948,7 @@ class SwitchGuiApp(tk.Tk):
                 with open(source_nand, 'rb') as src:
                     bytes_copied = 0
                     chunk_size = 1024 * 1024  # 1MB chunks
-                    last_update_bytes = 0
-                    update_interval_bytes = 512 * 1024 * 1024  # Update every 512 MB
-                    
-                    self._log("--- Starting optimized raw write to eMMC (5GB target)...")
-                    self._log("--- This should take about 2-3 minutes instead of 10-15 minutes.")
+                    self._log("--- Starting optimized raw write to eMMC (4GB target)...")
 
                     while bytes_copied < copy_size:
                         remaining = copy_size - bytes_copied
@@ -938,27 +957,22 @@ class SwitchGuiApp(tk.Tk):
                             self._log("--- WARNING: Source file ended before reaching target copy size.")
                             break
 
-                        # Write using os.write (proven method)
-                        bytes_written = os.write(target_fd, chunk)
-                        bytes_copied += bytes_written
+                        bytes_copied += os.write(target_fd, chunk)
 
-                        # Update progress and force flush periodically
-                        if (bytes_copied - last_update_bytes) >= update_interval_bytes or bytes_copied == copy_size:
-                            progress_gb = bytes_copied / (1024**3)
-                            total_gb = copy_size / (1024**3)
-                            percentage = (bytes_copied / copy_size) * 100
-                            self._log(f"--- Progress: {progress_gb:.2f} GB / {total_gb:.2f} GB ({percentage:.1f}%)")
-                            last_update_bytes = bytes_copied
-
-                            # Force flush to disk
-                            self._log("--- Forcing OS write cache to physical disk...")
-                            os.fsync(target_fd)
-                            self._log("--- Flush complete.")
+                        # --- MODIFIED FOR V1.0.2: Progress Bar ---
+                        percent = int((bytes_copied / copy_size) * 100)
+                        bar_length = 25
+                        filled_length = int(bar_length * percent / 100)
+                        bar = '█' * filled_length + '-' * (bar_length - filled_length)
+                        progress_gb = bytes_copied / (1024**3)
+                        total_gb = copy_size / (1024**3)
+                        self._update_progress(f"Writing to eMMC: [{bar}] {percent}% ({progress_gb:.2f}/{total_gb:.2f} GB)")
 
             finally:
                 # Always close the file descriptor
+                os.fsync(target_fd)
                 os.close(target_fd)
-                self._log("--- Target drive closed.")
+                self._log("--- Target drive flushed and closed.")
 
             self._log(f"--- SUCCESS: Copied {bytes_copied / (1024**3):.2f} GB to target eMMC")
             self._log(f"--- All essential partitions written. USER partition is blank and will be initialized by Switch.")
@@ -1035,6 +1049,13 @@ class SwitchGuiApp(tk.Tk):
     def _log(self, message, end="\n"):
         # Check if log_widget exists before trying to use it
         if hasattr(self, 'log_widget') and self.log_widget:
+            # --- MODIFIED FOR V1.0.2: Clean up progress bar before logging new line ---
+            last_line = self.log_widget.get("end-2l", "end-1l")
+            if last_line.startswith("--- Progress:"):
+                self.log_widget.config(state="normal")
+                self.log_widget.delete("end-2l", "end-1l")
+                self.log_widget.config(state="disabled")
+
             self.log_widget.config(state="normal")
             self.log_widget.insert(tk.END, message + end)
             self.log_widget.see(tk.END)
@@ -1091,6 +1112,7 @@ class SwitchGuiApp(tk.Tk):
     def _start_process(self, level):
         self._log(f"--- Starting {level} Process ---")
         try:
+            pythoncom.CoInitialize() # <--- ADD THIS LINE
             # Use custom temp directory if set
             if self.paths['temp_directory'].get():
                 temp_base = self.paths['temp_directory'].get()
@@ -1177,8 +1199,9 @@ class SwitchGuiApp(tk.Tk):
             self._log(f"ERROR: Failed to update system partition. {e}")
             return False
 
+    # In class SwitchGuiApp:
+
     def _run_level1_process(self, temp_dir):
-        # This function and the ones below are unchanged but included for completeness.
         self._log("\n--- WARNING ---")
         self._log("The Level 1 process will write directly to your Switch's eMMC.")
 
@@ -1186,27 +1209,44 @@ class SwitchGuiApp(tk.Tk):
             return
         
         self._log("\n[STEP 1/8] Please connect your Switch in Hekate's eMMC RAW GPP mode (Read-Only OFF).")
+        self._log("--- Detecting target eMMC...")
+        potential_drives = self._detect_switch_drives_wmi()
+        if not potential_drives:
+            CustomDialog(self, title="Error", message="No potential Switch eMMC drives found. Please ensure it is connected properly.")
+            return
+
+        if len(potential_drives) > 1:
+            CustomDialog(self, title="Multiple Drives Found", message="Found multiple drives that could be a Switch eMMC. "
+                                                                    "For safety, please disconnect other USB drives and try again.")
+            return
+        
+        target_drive = potential_drives[0]
+        drive_path = target_drive['path']
+        
+        # --- ADDED: Confirmation Pop-up for Level 1 ---
+        msg = (f"Found target eMMC:\n\nPath: {drive_path}\nSize: {target_drive['size']}\nModel: {target_drive['model']}\n\n"
+               "This will start the Level 1 System Restore process.\n"
+               "User data like saves and games will be preserved.\n\nContinue?")
+        
+        dialog = CustomDialog(self, title="Confirm Level 1 Restore", message=msg, buttons="yesno")
+        if not dialog.result:
+            self._log("--- User cancelled Level 1 restore.")
+            return
+        # --- END OF ADDED CODE ---
+
+        self._log(f"SUCCESS: User confirmed eMMC at {drive_path}")
         nx_exe = self.paths['nxnandmanager'].get()
-        return_code, output = self._run_command([nx_exe, '--list'])
-        if return_code != 0: return
-
-        drive_match = re.search(r"(\\\\.\\PhysicalDrive\d+)", output)
-        if not drive_match: return self._log("ERROR: No compatible Switch eMMC found.")
-        drive_path = drive_match.group(1)
-        self._log(f"SUCCESS: Found eMMC at {drive_path}")
-
+        
         self._log("--- Dumping and decrypting PRODINFO from eMMC...")
         keyset_path = self.paths['keys'].get()
         prodinfo_path = Path(temp_dir) / "PRODINFO"
         dump_cmd = [nx_exe, '-i', drive_path, '-keyset', keyset_path, '-o', temp_dir, '-d', '-part=PRODINFO']
         
-        # Check if dump command fails OR if the file wasn't created
         if self._run_command(dump_cmd)[0] != 0 or not prodinfo_path.exists():
             self._log(f"ERROR: Failed to dump or decrypt PRODINFO from the eMMC. It may be corrupt.")
             CustomDialog(self, title="PRODINFO Error", message="PRODINFO is not found or damaged. Please use Level 2 or Level 3 instead.")
             return
 
-        # Validate the dumped PRODINFO file's content
         with open(prodinfo_path, 'rb') as f:
             if f.read(4) != b'CAL0':
                 self._log(f"ERROR: The PRODINFO dumped from the eMMC is invalid or encrypted (magic is not CAL0).")
@@ -1258,7 +1298,6 @@ class SwitchGuiApp(tk.Tk):
             versioned_folder = next(d for d in emmchaccgen_out_dir.iterdir() if d.is_dir())
             source_system_path = versioned_folder / "SYSTEM"
             
-            # Use selective copying to preserve savemeta and other existing folders
             success = self._selective_copy_system_contents_level1(source_system_path, drive_letter)
             if not success:
                 return
@@ -1324,14 +1363,38 @@ class SwitchGuiApp(tk.Tk):
         self._log("\n--- WARNING ---")
         self._log("The Level 2 process will write directly to your Switch's eMMC.")
 
-        # ADD THIS LINE:
         if not self._check_disk_space(60):
             return
 
-        self._log("\n[STEP 1/7] Detecting eMMC...")
+        self._log("\n[STEP 1/7] Please connect your Switch in Hekate's eMMC RAW GPP mode (Read-Only OFF).")
+        self._log("--- Detecting target eMMC...")
+        potential_drives = self._detect_switch_drives_wmi()
+        if not potential_drives:
+            CustomDialog(self, title="Error", message="No potential Switch eMMC drives found. Please ensure it is connected properly.")
+            return
+
+        if len(potential_drives) > 1:
+            CustomDialog(self, title="Multiple Drives Found", message="Found multiple drives that could be a Switch eMMC. "
+                                                                    "For safety, please disconnect other USB drives and try again.")
+            return
+        
+        target_drive = potential_drives[0]
+        drive_path = target_drive['path']
+        
+        # --- ADDED: Confirmation Pop-up for Level 2 ---
+        msg = (f"Found target eMMC:\n\nPath: {drive_path}\nSize: {target_drive['size']}\nModel: {target_drive['model']}\n\n"
+               "WARNING: This will start the Level 2 Full Rebuild process.\n"
+               "ALL USER DATA (saves, games) WILL BE PERMANENTLY ERASED.\n\nContinue?")
+        
+        dialog = CustomDialog(self, title="Confirm Level 2 Rebuild", message=msg, buttons="yesno")
+        if not dialog.result:
+            self._log("--- User cancelled Level 2 rebuild.")
+            return
+        # --- END OF ADDED CODE ---
+
+        self._log(f"--- SUCCESS: User confirmed eMMC at {drive_path}")
         nx_exe = self.paths['nxnandmanager'].get()
         
-        # Hardcode the path to the lib/NAND folder
         try:
             script_dir = Path(__file__).parent
         except NameError:
@@ -1339,13 +1402,6 @@ class SwitchGuiApp(tk.Tk):
         partitions_folder = script_dir / "lib" / "NAND"
         keyset_path = self.paths['keys'].get()
         
-        return_code, output = self._run_command([nx_exe, '--list'])
-        if return_code != 0: return
-        drive_match = re.search(r"(\\\\.\\PhysicalDrive\d+)", output)
-        if not drive_match: return self._log("ERROR: No compatible Switch eMMC found.")
-        drive_path = drive_match.group(1)
-        self._log(f"--- SUCCESS: Found eMMC at {drive_path}")
-
         self._log("--- Acquiring PRODINFO...")
         prodinfo_path = Path(temp_dir) / "PRODINFO"
         dump_cmd = [nx_exe, '-i', drive_path, '-keyset', keyset_path, '-o', temp_dir, '-d', '-part=PRODINFO']
@@ -1390,7 +1446,8 @@ class SwitchGuiApp(tk.Tk):
         if self._run_command(emmchaccgen_cmd, cwd=str(emmchaccgen_out_dir))[0] != 0: return
 
         self._log(f"\n[STEP 4/7] Preparing donor SYSTEM partition...")
-        if self._run_command([self.paths['7z'].get(), 'x', str(partitions_folder / "SYSTEM.7z"), f'-o{temp_dir}'])[0] != 0: return
+        cmd = [self.paths['7z'].get(), 'x', str(partitions_folder / "SYSTEM.7z"), f'-o{temp_dir}', '-bsp1', '-y']
+        if self._run_command_with_progress(cmd, "Extracting SYSTEM")[0] != 0: return
         system_dec_path = Path(temp_dir) / "SYSTEM.dec"
         
         self._log(f"--- Mounting donor SYSTEM to inject files...")
@@ -1405,7 +1462,6 @@ class SwitchGuiApp(tk.Tk):
             versioned_folder = next(d for d in emmchaccgen_out_dir.iterdir() if d.is_dir())
             source_system_path = versioned_folder / "SYSTEM"
             
-            # Use selective copying to preserve existing folders in donor SYSTEM
             success = self._selective_copy_system_contents(source_system_path, Path(drive_letter_str))
             if not success:
                 return
@@ -1429,7 +1485,8 @@ class SwitchGuiApp(tk.Tk):
                             "SAFE": {"default": "SAFE.7z"}}
         for part_name, archive_map in partition_map.items():
             archive_name = archive_map.get(detected_model, archive_map["default"])
-            if self._run_command([self.paths['7z'].get(), 'x', str(partitions_folder / archive_name), f'-o{temp_dir}'])[0] == 0:
+            cmd = [self.paths['7z'].get(), 'x', str(partitions_folder / archive_name), f'-o{temp_dir}', '-bsp1', '-y']
+            if self._run_command_with_progress(cmd, f"Extracting {part_name}")[0] == 0:
                 dec_file_path = Path(temp_dir) / f"{part_name}.dec"
                 flash_cmd = [nx_exe, '-i', str(dec_file_path), '-o', drive_path, f'-part={part_name}', '-e', '-keyset', keyset_path, 'FORCE']
                 if part_name == "USER" and not donor_prodinfo_used:
