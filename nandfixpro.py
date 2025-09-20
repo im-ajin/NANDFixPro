@@ -105,7 +105,7 @@ class CustomDialog(tk.Toplevel):
 class SwitchGuiApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.version = "1.0.2"
+        self.version = "1.0.3"
         self.title(f"NAND Fix Pro v{self.version}")
         self.geometry("800x800")
         self.resizable(False, False)
@@ -350,6 +350,63 @@ class SwitchGuiApp(tk.Tk):
         
         self.update_idletasks()
 
+    def _show_about_window(self):
+        """Displays a simple 'About' dialog with version and credit info."""
+        about_message = (f"NAND Fix Pro v{self.version}\n\n"
+                         "A tool for repairing and rebuilding Nintendo Switch eMMC NAND.\n\n"
+                         "Developed and maintained by: sthetix")
+        CustomDialog(self, title="About NAND Fix Pro", message=about_message)
+
+    def _show_usage_guide_window(self):
+        """Creates a new window and displays the contents of usage.txt."""
+        try:
+            # Determine the path to the usage guide
+            try:
+                # Path when running as a script
+                base_path = Path(__file__).parent
+            except NameError:
+                # Path when running as a frozen executable (PyInstaller)
+                base_path = Path(sys.executable).parent
+            
+            guide_path = base_path / "lib" / "docs" / "usage.txt"
+
+            if guide_path.is_file():
+                with open(guide_path, 'r', encoding='utf-8') as f:
+                    guide_content = f.read()
+            else:
+                guide_content = "Error: Could not find the usage guide file.\n\n" \
+                                f"Please ensure 'usage.txt' exists in the following location:\n{guide_path}"
+        except Exception as e:
+            guide_content = f"An unexpected error occurred while trying to load the usage guide:\n\n{e}"
+
+        # Create the Toplevel window
+        help_win = tk.Toplevel(self)
+        help_win.title("Usage Guide")
+        help_win.geometry("700x600")
+        help_win.configure(bg=self.BG_COLOR)
+        
+        # Center the window relative to the parent
+        parent_x, parent_y = self.winfo_x(), self.winfo_y()
+        parent_w, parent_h = self.winfo_width(), self.winfo_height()
+        win_w, win_h = 700, 600
+        x = parent_x + (parent_w // 2) - (win_w // 2)
+        y = parent_y + (parent_h // 2) - (win_h // 2)
+        help_win.geometry(f"+{x}+{y}")
+        
+        # Create a ScrolledText widget
+        text_widget = scrolledtext.ScrolledText(help_win, wrap=tk.WORD,
+            bg="#1e1e1e", fg="#d4d4d4", relief="flat", borderwidth=1,
+            font=("Segoe UI", 10), insertbackground="#d4d4d4"
+        )
+        text_widget.pack(expand=True, fill="both", padx=15, pady=15)
+        
+        # Insert the content and make it read-only
+        text_widget.insert(tk.END, guide_content)
+        text_widget.config(state="disabled")
+
+        help_win.transient(self)
+        help_win.grab_set()    
+
     def _save_log(self):
         """Save the current log contents to a file."""
         try:
@@ -417,8 +474,21 @@ class SwitchGuiApp(tk.Tk):
                             activebackground=self.ACCENT_COLOR, activeforeground=self.FG_COLOR, 
                             relief="flat", borderwidth=0)
         self.config(menu=menubar)
+
+        # --- THIS PART IS UPDATED ---
         self._setup_settings_menu(menubar)
-        
+
+        # ADDED: Help Menu
+        help_menu = tk.Menu(menubar, tearoff=0,
+            background=self.BG_LIGHT, foreground=self.FG_COLOR,
+            activebackground=self.ACCENT_COLOR, activeforeground=self.FG_COLOR,
+            relief="flat", borderwidth=0)
+        menubar.add_cascade(label="Help", menu=help_menu)
+        help_menu.add_command(label="Usage Guide", command=self._show_usage_guide_window)
+        help_menu.add_separator()
+        help_menu.add_command(label="About NAND Fix Pro", command=self._show_about_window)
+        # --- END OF UPDATE ---
+
         # --- TAB CONTROL SETUP ---
         tab_control = ttk.Notebook(self, style="TNotebook")
         tab_level1 = ttk.Frame(tab_control, padding="15")
@@ -496,6 +566,8 @@ class SwitchGuiApp(tk.Tk):
         button.pack(side=tk.LEFT, padx=10, ipady=5, ipadx=15)
         setattr(self, button_ref, button)
 
+        return button_frame # CHANGED: Return the frame so we can add more buttons to it
+
     def _setup_level1_tab(self, parent_frame):
         info_text = ("Fixes a corrupt SYSTEM partition directly on your Switch's eMMC.\n\n"
                         "• Use this for software errors, failed updates, or boot issues where only the OS is affected.\n"
@@ -519,8 +591,15 @@ class SwitchGuiApp(tk.Tk):
             ("keys", "Keys File (prod.keys):", "file"),
             ("output_folder", "Output Folder:", "folder"),
         ]
-        self._setup_tab_content(parent_frame, "Level 2: Description", info_text, paths, "Level 2",
+        # CHANGED: Capture the button_frame
+        button_frame = self._setup_tab_content(parent_frame, "Level 2: Description", info_text, paths, "Level 2",
                                 "start_level2_button", lambda: self._start_threaded_process("Level 2"))
+        
+        # ADDED: New button for the advanced feature
+        advanced_button = ttk.Button(button_frame, text="Advanced: Fix USER Only", 
+                                     command=self._start_user_fix_threaded, style="TButton")
+        advanced_button.pack(side=tk.LEFT, padx=10, ipady=5, ipadx=15)
+        # We don't need to track this button's state, but if we did, we would do it here.
 
     def _setup_level3_tab(self, parent_frame):
         info_text = ("For total NAND loss, including PRODINFO. This is a last resort.\n\n"
@@ -535,6 +614,114 @@ class SwitchGuiApp(tk.Tk):
         ]
         self._setup_tab_content(parent_frame, "Level 3: Description", info_text, paths, "Level 3",
                                 "start_level3_button", self._start_level3_threaded)
+        
+
+    def _start_user_fix_threaded(self):
+        """Starts the targeted USER partition fix in a new thread."""
+        self._disable_buttons()
+        thread = threading.Thread(target=self._run_user_fix_process)
+        thread.daemon = True
+        thread.start()
+
+    def _run_user_fix_process(self):
+        """Performs a targeted fix of the USER partition only."""
+        self._log("\n--- Starting Advanced: Fix USER Partition Only ---")
+        temp_dir_obj = None  # To hold the TemporaryDirectory object if created
+        try:
+            pythoncom.CoInitialize()
+            
+            # Use a temporary directory for the operation
+            if self.paths['temp_directory'].get():
+                temp_base = self.paths['temp_directory'].get()
+                temp_dir_name = f"switch_gui_user_fix_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                temp_dir = os.path.join(temp_base, temp_dir_name)
+                os.makedirs(temp_dir, exist_ok=True)
+            else:
+                temp_dir_obj = tempfile.TemporaryDirectory(prefix="switch_gui_user_fix_")
+                temp_dir = temp_dir_obj.name
+            
+            self._log(f"INFO: Created temporary directory at: {temp_dir}")
+            
+            # STEP 1: Detect eMMC with WMI
+            self._log("\n[STEP 1/4] Please connect Switch in Hekate eMMC RAW GPP mode (Read-Only OFF).")
+            self._log("--- Detecting target eMMC...")
+            potential_drives = self._detect_switch_drives_wmi()
+            if not potential_drives:
+                CustomDialog(self, title="Error", message="No potential Switch eMMC drives found.")
+                return
+
+            if len(potential_drives) > 1:
+                CustomDialog(self, title="Multiple Drives Found", message="Found multiple drives that could be a Switch eMMC. Please disconnect other USB drives.")
+                return
+            
+            target_drive = potential_drives[0]
+            drive_path = target_drive['path']
+            
+            # STEP 2: Confirm with the user
+            msg = (f"Found target eMMC:\n\nPath: {drive_path}\nSize: {target_drive['size']}\nModel: {target_drive['model']}\n\n"
+                   "This procedure will alter and fix the USER partition only. All user data on this partition will be erased.\n\n"
+                   "Are you sure you want to proceed?")
+            
+            dialog = CustomDialog(self, title="Confirm USER Partition Fix", message=msg, buttons="yesno")
+            if not dialog.result:
+                self._log("--- User cancelled the operation.")
+                return
+
+            self._log(f"--- SUCCESS: User confirmed eMMC at {drive_path}")
+
+            # STEP 3: Extract the correct USER partition
+            self._log("\n[STEP 2/4] Preparing donor USER partition...")
+            try:
+                script_dir = Path(__file__).parent
+            except NameError:
+                script_dir = Path.cwd()
+            partitions_folder = script_dir / "lib" / "NAND"
+            
+            target_size_gb = target_drive['size_gb']
+            user_archive = "USER-64.7z" if target_size_gb > 40 else "USER-32.7z"
+            
+            cmd = [self.paths['7z'].get(), 'x', str(partitions_folder / user_archive), f'-o{temp_dir}', '-bsp1', '-y']
+            if self._run_command_with_progress(cmd, "Extracting USER partition")[0] != 0:
+                self._log("ERROR: Failed to extract USER partition.")
+                return
+                
+            # STEP 4: Flash the USER partition
+            self._log("\n[STEP 3/4] Flashing first 100MB of USER partition to eMMC...")
+            nx_exe = self.paths['nxnandmanager'].get()
+            keyset_path = self.paths['keys'].get()
+            user_dec_path = Path(temp_dir) / "USER.dec"
+
+            if not user_dec_path.exists():
+                self._log("ERROR: Extracted USER.dec not found.")
+                return
+
+            flash_cmd = [nx_exe, '-i', str(user_dec_path), '-o', drive_path, '-part=USER', '-e', '-keyset', keyset_path, 'FORCE']
+            
+            # --- CHANGED: Use the optimized 100MB flash function ---
+            if self._run_and_interrupt_flash(flash_cmd, "USER", 100) != 0:
+                self._log("ERROR: Failed to flash USER partition to eMMC.")
+                return
+            
+            self._log("\n[STEP 4/4] Process Complete!")
+            self._log("SUCCESS: The USER partition has been replaced.")
+            self._log("--- ADVANCED USER FIX FINISHED ---")
+
+            CustomDialog(self, title="Process Complete", 
+                message="The USER partition was successfully fixed.\n\n" +
+                        "All previous user data has been erased.")
+
+        except Exception as e:
+            self._log(f"An unexpected critical error occurred: {e}\n{traceback.format_exc()}")
+            self._log("\nINFO: Process finished with an error.")
+        finally:
+            # Clean up the temporary directory
+            if temp_dir_obj:
+                temp_dir_obj.cleanup()
+            elif 'temp_dir' in locals() and os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+                self._log(f"INFO: Cleaned up temporary directory: {temp_dir}")
+
+            self._re_enable_buttons()    
 
 
     # --- THE REST OF YOUR LOGIC IS UNCHANGED ---
@@ -635,7 +822,7 @@ class SwitchGuiApp(tk.Tk):
         extract_dir = Path(temp_dir) / "donor_extract"
         extract_dir.mkdir(exist_ok=True)
         
-        # --- MODIFIED FOR V1.0.2: Progress Bar ---
+        # --- MODIFIED FOR V1.0.3: Progress Bar ---
         extract_cmd = [self.paths['7z'].get(), 'x', str(donor_archive), f'-o{extract_dir}', '-bsp1', '-y']
         if self._run_command_with_progress(extract_cmd, f"Extracting {size} donor NAND")[0] != 0:
             self._log("ERROR: Failed to extract donor NAND archive.")
