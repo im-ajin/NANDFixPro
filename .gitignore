@@ -25,3 +25,6 @@ __pycache__/
 # These often contain user-specific data or error info
 error_log.txt
 config.ini
+
+# Release pack
+*.zip
