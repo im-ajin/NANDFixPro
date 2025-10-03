@@ -1,336 +1,284 @@
-==============================
-NAND Fix Pro v1.0.2 - Complete Usage Guide
-==============================
+# NAND Fix Pro v2.0.0 - Complete Usage Guide
 
-Table of Contents:
+## Table of Contents
 1. Introduction & Safety
-2. Prerequisites  
-3. Initial Setup
-4. Understanding the Repair Levels
-5. Step-by-Step Procedures
-6. Troubleshooting
-7. FAQ
-8. Final Notes
+2. Getting Started: Mandatory First Steps
+3. Prerequisites (File & Hardware Checklist)
+4. The In-App Workflow
+5. Understanding the Repair Levels
+6. PRODINFO Editor
+7. Step-by-Step Procedures
+8. Troubleshooting
+9. FAQ
+10. Final Notes
 
-==============================
-1. INTRODUCTION & SAFETY
-==============================
+---
 
-What is NAND Fix Pro?
-NAND Fix Pro is a comprehensive wrapper tool that orchestrates and automates the repair of software-level corruption on Nintendo Switch eMMC NAND storage. It manages multiple specialized components working together:
+## 1. Introduction & Safety
 
-- EmmcHaccGen: Generates boot files and system content
-- NxNandManager: Handles partition extraction, flashing, and encryption
-- OSFMount: Mounts filesystem images for modification
+### What is NAND Fix Pro?
+NAND Fix Pro is a comprehensive GUI tool that orchestrates and automates the repair of software-level corruption on Nintendo Switch eMMC NAND storage. It simplifies the use of powerful tools like EmmcHaccGen and NxNandManager into an intuitive, button-driven process.
 
-NAND Fix Pro acts as an intelligent orchestrator that automates the complex process of using these tools together, eliminating the need for manual command-line operations and reducing user error. It can recover consoles that fail to boot due to damaged operating systems, corrupted partitions, or failed firmware updates.
+### CRITICAL WARNING
+This tool CANNOT fix hardware issues. It is for software repair only. Proceed with caution and at your own risk.
 
-CRITICAL WARNING:
-This tool CANNOT fix hardware issues. If your Switch has:
-- Physical damage to the eMMC chip
-- Motherboard failures
-- Power supply issues
-- Damaged connectors
-
-This software will not help. Hardware repairs require professional service.
-
-Risk Assessment:
+### Risk Assessment
 - Level 1: Minimal risk - preserves user data
 - Level 2: Moderate risk - erases all user data but keeps console identity
 - Level 3: High risk - loses official Nintendo services but maintains internet connectivity
 
-==============================
-2. PREREQUISITES
-==============================
-
-Required Files:
-
-1. prod.keys - Console-specific encryption keys
-   - Must be dumped from YOUR console using Lockpick_RCM
-   - Never use keys from another console
-   - File should be approximately 4KB in size
-
-2. Firmware Package - Complete Nintendo Switch firmware
-   - Download from trusted sources: https://www.sthetix.info/nx-firmware or https://github.com/THZoria/NX_Firmware or 
-   - Must be EXTRACTED, not a ZIP file
-   - Should contain folders like: 00, 01, 02, etc.
-
-3. PRODINFO (Level 3 only) - Console identity file
-   - Only needed for Level 3 recovery
-   - Must be decrypted (starts with "CAL0" when viewed in hex editor)
-   - Can be your original console's decrypted PRODINFO backup OR generated using prodinfo_gen tool
-
-Required Hardware:
-- Modded Nintendo Switch with modchip
-- USB-C cable (data transfer capable)
-- Windows PC
-- Minimum 60GB free disk space
-- Stable USB connection
-
-Required Software (Auto-installed by NAND Fix Pro):
-- OSFMount (for mounting filesystem images)
-- 7-Zip (for archive extraction)
-- Python WMI library (for drive detection)
-
-==============================
-3. INITIAL SETUP
-==============================
-
-1. Create NAND Backup (MANDATORY):
-Before attempting ANY repair, create a complete backup:
-
-a) Power on your Switch and boot to Hekate
-b) Navigate to Tools → Backup eMMC
-c) Select "eMMC BOOT0 & BOOT1" and wait for completion
-d) Select "eMMC RAW GPP" and wait for completion
-e) Keep this backup safe - it contains your console's unique identity
-
-2. Prepare Your Switch:
-
-a) In Hekate, go to Tools → USB Tools 
-b) IMPORTANT: Set "Read-Only" to OFF
-c) Click eMMC RAW GPP
-d) Connect USB-C cable to PC
-
-3. Configure NAND Fix Pro:
-a) Launch NANDFixPro.exe (automatically runs with admin privileges)
-b) Go to Settings menu and configure paths:
-   - Keys File: Point to your prod.keys file
-   - Firmware Folder: Select your extracted firmware directory
-   - Output Folder: Choose where to save BOOT files
-   - PRODINFO (Level 3): Select your PRODINFO file if needed
-c) The application will auto-detect other required tools
-
-==============================
-4. UNDERSTANDING THE REPAIR LEVELS
-==============================
-
---- LEVEL 1: SYSTEM RESTORE ---
-Best for: Most common software issues
-
-What it does:
-- Repairs the SYSTEM partition while preserving user data
-- Replaces OS files but keeps saves, games, and profiles
-- Updates bootloaders to match firmware version
-
-Use when:
-- Switch boots but hangs on second Nintendo logo
-- Installing custom themes caused boot issues
-- Want to cleanly upgrade/downgrade firmware
-- System shows error codes but still partially boots
-
-Data preservation:
-✓ Game saves
-✓ Installed games
-✓ User profiles
-✓ Screenshots/videos
-✓ System settings (partially)
-
---- LEVEL 2: FULL REBUILD ---
-Best for: Deep corruption across multiple partitions
-
-What it does:
-- Rebuilds all major partitions from clean templates
-- Preserves console identity (PRODINFO)
-- Creates "factory fresh" state with new firmware
-
-Use when:
-- Level 1 fails to resolve the issue
-- Multiple partitions show corruption
-- Want to completely sanitize console before sale
-- Suspect filesystem corruption beyond just OS
-
-Data preservation:
-✗ Game saves (permanently lost)
-✗ Installed games (permanently lost)
-✗ User profiles (permanently lost)
-✗ Screenshots/videos (permanently lost)
-✓ Console identity and online functionality
-
-Advanced: Fix USER Only
-A faster variant that only replaces the USER partition:
-- Takes less time than the original Level 2
-- Use when the USER partition is corrupt
-- Same data loss as full Level 2
-
---- LEVEL 3: COMPLETE RECOVERY ---
-Best for: Total NAND loss scenarios (LAST RESORT)
-
-What it does:
-- Rebuilds entire NAND from scratch using donor templates
-- Requires external PRODINFO file (original backup or artificial)
-- Creates bootable system but loses official Nintendo services
-
-Use when:
-- eMMC was completely wiped/formatted
-- PRODINFO is irreparably damaged
-- Previous repairs destroyed console identity
-- No other option remains
-
-Consequences:
-✗ All data permanently lost
-✗ Original Nintendo eShop access lost forever
-✗ Cannot update games/system through Nintendo servers
-✗ Cannot download games from official eShop
-✓ Can still connect to internet and use homebrew shops (Tinfoil, etc.)
-✓ Online gaming through homebrew may still work
-
-==============================
-5. STEP-BY-STEP PROCEDURES
-==============================
-
-Before Starting Any Level:
-1. Ensure 60GB+ free disk space
-2. Verify Switch is properly connected and detected
-3. Double-check all file paths in Settings
-
---- LEVEL 1 PROCEDURE ---
-1. Connect & Confirm: App will detect your Switch eMMC
-2. PRODINFO Analysis: Tool reads console identity from eMMC
-3. Boot File Generation: Creates firmware-specific bootloaders
-4. System Backup: Dumps current SYSTEM partition
-5. System Modification: Injects new OS files while preserving user data
-6. System Restore: Writes modified partition back to eMMC
-7. Bootloader Update: Installs new BCPKG2 partitions
-8. BOOT File Export: Saves BOOT0/BOOT1 for manual flashing
-
-
-
---- LEVEL 2 PROCEDURE ---
-1. Connect & Confirm: App detects Switch and confirms data erasure
-2. PRODINFO Acquisition: Reads from eMMC or uses backup
-3. Boot File Generation: Creates firmware-specific bootloaders
-4. Template Preparation: Extracts clean partition templates
-5. System Integration: Injects OS files into clean SYSTEM template
-6. Mass Partition Flash: Replaces PRODINFO, SYSTEM, USER, SAFE partitions
-7. Bootloader Update: Installs new BCPKG2 partitions
-8. BOOT File Export: Saves BOOT0/BOOT1 for manual flashing
-
-
-
---- LEVEL 3 PROCEDURE ---
-1. Connect & Confirm: App detects Switch and warns about consequences
-2. Skeleton Preparation: Extracts appropriate NAND template (32GB/64GB)
-3. PRODINFO Validation: Verifies donor PRODINFO file
-4. Boot File Generation: Creates firmware-specific bootloaders
-5. Template Population: Extracts and prepares all partition templates
-6. System Integration: Builds complete SYSTEM with OS files
-7. Skeleton Assembly: Flashes all partitions to NAND template
-8. Complete Flash: Writes entire reconstructed NAND to eMMC
-9. BOOT File Export: Saves BOOT0/BOOT1 for manual flashing
-
-
-
---- FINAL STEP FOR ALL LEVELS ---
-Manual BOOT Flashing (REQUIRED):
-1. On Hekate, Go to Tools → USB Tools
-2. IMPORTANT: Set "Read-Only" to OFF
-3. Select SD
-4. Copy or Move the generated BOOT0 and BOOT1 to the Backup/[alphanumeric ID]/restore
-5. Select Restore eMMC → eMMC BOOT0 & BOOT1 and ignore all mismatched file size
-
-==============================
-6. TROUBLESHOOTING
-==============================
-
-Common Issues:
-
-"No potential Switch eMMC drives found"
-- Ensure Switch is in eMMC RAW GPP mode
-- Check USB cable (must support data transfer)
-- Try different USB port
-- Verify "Read-Only" is set to OFF in Hekate
-- Reconnect Switch and retry
-
-"Permission denied when trying to write"
-- Ensure no file explorer windows are browsing the Switch
-- Close all programs that might access USB drives
-- Check USB connection stability
-
-"PRODINFO is not found or damaged"
-- For Level 1/2: If PRODINFO cannot be read from eMMC, you must use Level 3 instead
-- For Level 3: Use either your original console's decrypted PRODINFO backup or generate artificial PRODINFO using prodinfo_gen tool
-- Verify PRODINFO file is decrypted (starts with "CAL0")
-
-"Failed to extract/flash partition"
-- Check available disk space (need 60GB+)
-- Verify all required files are present in lib/NAND folder
-- Try running on different PC
-- Check USB connection stability
-
-"Process hangs or freezes"
-- Don't disconnect Switch during operation
-- Check system resources (CPU/RAM usage)
-- Try using custom temporary directory on different drive
-- Restart application and retry
-
-Error Messages:
-Check the application's log output for specific error messages and troubleshooting guidance. The log will provide detailed information about any issues encountered during the repair process.
-
-==============================
-7. FAQ
-==============================
-
-Q: Can I use this tool on a banned console?
-A: Yes, ban status doesn't affect the repair process. However, this tool CANNOT unban a console.
-
-Q: Will this tool unban my console?
-A: No. This tool repairs software corruption only. Console bans are server-side and cannot be reversed by any software tool - no tool can reverse a Nintendo ban.
-
-Q: Will this remove CFW/homebrew?
-A: All levels preserve CFW/homebrew. Level 1 retains user saves and profiles, while Levels 2 and 3 erase everything.
-
-Q: Can I downgrade firmware?
-A: Yes, downgrading is possible but not recommended unless necessary, such as syncing the fuse count when updating the console online after performing a Level 1 or 2 process.
-
-
-Q: What if I don't have PRODINFO backup?
-A: Level 1/2 can extract from eMMC. Level 3 requires external PRODINFO file (original backup or artificial from prodinfo_gen).
-
-Q: Is it safe to interrupt the process?
-A: No! Interruption can cause permanent damage. Ensure stable power/connection.
-
-Q: Will my saves work after Level 1?
-A: Yes, Level 1 preserves all user data including saves.
-
-Q: How do I know which level to use?
-A: Always start with Level 1. Only use higher levels if lower levels fail.
-
-Q: What happens if Level 3 fails?
-A: Console may become permanently unrecoverable. This is why it's last resort.
-
-Q: Why does Level 3 break official Nintendo services?
-A: Because original console certificates are lost and cannot be regenerated.
-
-
-==============================
-8. FINAL NOTES
-==============================
-
-Success Indicators:
-- Switch boots to HOME menu without errors
-- All system functions work normally
-- Nintendo services work (Level 1/2 only, unless console is banned)
-- Games launch and saves load properly
-
-Post-Repair Recommendations:
-1. Test all basic functions before installing homebrew
-2. Create new NAND backup after successful repair
-3. Update atmosphere/CFW if using homebrew
-4. Verify online functionality before intensive use
-
-Support Resources:
-- Logs: Always save application logs for troubleshooting
-- Backups: Keep multiple NAND backups in safe locations
-- Community: Nintendo Switch homebrew communities for advanced help
-
-Important Reminders:
-- ALWAYS create NAND backup before starting
-- Never interrupt the repair process
-- Level 3 loses official Nintendo services but maintains internet connectivity
-- Start with Level 1 and escalate only if needed
-- Save logs for troubleshooting support
-
-Legal Disclaimer:
-This tool is for repairing legitimately owned consoles only. Users are responsible for compliance with local laws and Nintendo's terms of service. Use at your own risk.
+---
 
+## 2. Getting Started: Mandatory First Steps
+
+Before you even launch NAND Fix Pro, you MUST perform these two steps. The application's core features will NOT work without them.
+
+### Step 1: Dump Your Console Keys (prod.keys)
+You must extract the unique encryption keys from your console.
+
+How: Boot your Switch into Hekate and launch the Lockpick_RCM.bin payload.
+
+What it does: This will create a file named prod.keys and save it to the /switch/ folder on your SD card.
+
+Why it's required: The "Get Keys from SD" button in NAND Fix Pro searches for this specific file in this specific location. Without it, the application cannot proceed.
+
+### Step 2: Create a Full NAND Backup
+You must create a complete backup of your Switch's internal memory (eMMC).
+
+How: Boot your Switch into Hekate. Navigate to Tools → Backup eMMC.
+
+Action: First, select "eMMC BOOT0 & BOOT1". After it finishes, select "eMMC RAW GPP".
+
+Why it's required: This serves two critical purposes:
+1. Safety: This is your ultimate safety net. If anything goes wrong, this backup can restore your console.
+2. Functionality: The backup process creates the /backup/[your_emmc_id]/restore/ folder structure on your SD card. The "Copy BOOT to SD" button REQUIRES this exact folder to place the new boot files. The button will fail if this folder does not exist.
+
+Do not proceed until you have both your prod.keys on the SD card and a full NAND backup completed.
+
+---
+
+## 3. Prerequisites (File & Hardware Checklist)
+
+### Required Files (that you should now have)
+1. prod.keys: Located in /switch/ on your SD card (from Step 1 above).
+2. Firmware Package: A complete, EXTRACTED Nintendo Switch firmware. It should be a folder containing subfolders like 00, 01, 02, etc.
+3. PRODINFO (Level 3 only): A decrypted PRODINFO file (original / donor) for total recovery scenarios.
+
+### Required Hardware
+- Modded Nintendo Switch
+- USB-C data transfer cable
+- Windows PC with minimum 60GB free disk space
+
+---
+
+## 4. The In-App Workflow
+
+With the mandatory first steps completed, using the app is simple:
+
+1. Launch and Configure: Launch NANDFixPro.exe. The only path you need to set manually for Level 1 & 2 is your Firmware Folder.
+2. Get Keys: Mount your SD card in Hekate. Click "Get Keys from SD".
+3. Start Process: Connect the eMMC in Hekate (Read-Only OFF). Click the "Start Process" button for your chosen level.
+4. Copy BOOT: After the repair, mount the SD card again. Click "Copy BOOT to SD".
+5. Restore in Hekate: In Hekate, use Tools → Restore eMMC to flash the eMMC BOOT0 & BOOT1.
+
+---
+
+## 5. Understanding the Repair Levels
+
+### Level 1: System Restore
+Best for: Most common software issues (hangs on boot, bad themes). Preserves user data.
+
+This is the safest option that attempts to fix system corruption while keeping all your games, saves, and user data intact. Start here for most issues.
+
+### Level 2: Full Rebuild
+Best for: Deep corruption where Level 1 fails. ERASES ALL USER DATA.
+
+This completely rebuilds the system partitions but maintains your console's unique identity. You'll lose all games and saves but can still use Nintendo services.
+
+Advanced: Fix USER Only Button: A faster variant within the Level 2 tab. Only rebuilds the USER partition.
+
+### Level 3: Complete Recovery
+Best for: Total NAND loss (LAST RESORT). PERMANENTLY BREAKS OFFICIAL NINTENDO SERVICES.
+
+This is the nuclear option for completely dead consoles. Your Switch will work but will never be able to connect to Nintendo's servers again.
+
+---
+
+## 6. PRODINFO Editor
+
+### What is the PRODINFO Editor?
+The PRODINFO Editor is an integrated tool that allows you to modify your Switch's PRODINFO (calibration) data before using it in a Level 3 recovery. This is useful for customizing donor PRODINFO files.
+
+### When to Use It
+The PRODINFO Editor menu becomes available when:
+- You import a donor PRODINFO from SD card (via "Get Keys from SD"), OR
+- You manually select a donor PRODINFO file (via Settings menu)
+
+### What You Can Edit
+1. Serial Number: Change the 14-character console serial (format: XAW10012345678)
+2. WiFi Region: Modify the wireless region code (America, Europe, Japan, etc.)
+3. Frame Colors: Customize the bezel and main body colors with hex color codes
+
+### Accessing the Editor
+1. Load a PRODINFO file using either:
+   - Click "Get Keys from SD" (if donor PRODINFO is on SD card)
+   - Go to Settings → Set Donor PRODINFO and browse to your file
+2. The "PRODINFO Editor" menu will activate at the top menu bar
+3. Click "PRODINFO Editor" → "Edit PRODINFO File"
+
+### The Editing Workflow
+Recommended order:
+
+1. Verify Integrity First (optional but recommended)
+   - Click "Verify Integrity" button to check the current state
+   - Review the log for any existing errors or warnings
+   - Note: Uninitialized color data (000000) is normal for some NAND dumps
+
+2. Make Your Edits
+   - Serial Number: Must be exactly 14 characters (letters and numbers)
+   - WiFi Region: Select from dropdown menu
+   - Frame Colors: Enter 6-digit hex codes or use color picker
+
+3. Save Changes
+   - Click "Apply Changes"
+   - All checksums (CRC16) and hashes (SHA256) are automatically recalculated
+
+4. Verify Integrity Again (recommended)
+   - Click "Verify Integrity" after saving
+   - Confirms all checksums are valid
+   - Ensures the file will be accepted by Switch firmware
+
+### Important Notes
+- A backup (.bak) is automatically created when you load a file
+- The editor only works with decrypted PRODINFO files (CAL0 magic header)
+- Changes are permanent once saved
+- Invalid checksums will cause Atmosphère to flag INVALID_PRODINFO errors
+
+### Color Customization Tips
+- Use the color picker for easy selection
+- Preview shows how colors will look on your Switch
+- Bezel = front frame around screen
+- Main = back shell body color
+- Common hex codes:
+  - Black: 000000
+  - White: FFFFFF
+  - Red: FF0000
+  - Blue: 0000FF
+  - Gray: 808080
+
+---
+
+## 7. Step-by-Step Procedures
+
+### For All Levels - The Basic Process
+
+1. Complete the mandatory first steps (dump keys and create backup)
+2. Launch NAND Fix Pro and set your firmware folder path
+3. Mount SD card in Hekate and click "Get Keys from SD"
+4. Connect eMMC in Hekate (ensure Read-Only is OFF)
+5. Click the appropriate "Start Process" button for your chosen level
+6. Wait for the process to complete
+7. Follow the final bootloader flashing step below
+
+### Level 3 Extended Process (with PRODINFO Editing)
+
+1. Complete the mandatory first steps
+2. Launch NAND Fix Pro and set firmware folder path
+3. Mount SD card in Hekate and click "Get Keys from SD"
+4. If donor PRODINFO was found, optionally edit it:
+   - Click "PRODINFO Editor" menu
+   - Click "Edit PRODINFO File"
+   - Verify integrity (optional but recommended)
+   - Edit serial, region, colors as desired
+   - Click "Apply Changes"
+   - Verify integrity again (recommended)
+   - Close the editor
+5. Connect eMMC in Hekate (Read-Only OFF)
+6. Click "Start Level 3 Process"
+7. Follow the BOOT flashing steps as usual
+
+### Final Step for All Levels - Flashing the Bootloader via Hekate (Required)
+
+1. After a Level process finishes, the "Copy BOOT to SD" button will turn blue.
+2. In Hekate, switch to the SD Card USB tool.
+3. Click the "Copy BOOT to SD" button in NAND Fix Pro. It will automatically find the /backup/[emmcID]/restore folder and copy the files.
+4. Once copied, safely eject the SD card from your PC.
+5. In Hekate, go to Tools → Restore eMMC → eMMC BOOT0 & BOOT1.
+
+---
+
+## 8. Troubleshooting
+
+### Common Issues and Solutions
+
+"No potential Switch eMMC drives found": Ensure Switch is in eMMC RAW GPP mode and Read-Only is OFF in Hekate.
+
+"Keys Not Found": You did not complete Step 1. Run Lockpick_RCM to create prod.keys in /switch/ on your SD card.
+
+"Backup Folder Not Found": You did not complete Step 2. You must create a full NAND backup in Hekate to create the required folder structure.
+
+"Permission denied": The app should run as admin. Close any file explorer windows browsing the Switch eMMC or SD card.
+
+Save the Log: If you encounter an error, use the "Save Log" button. This file is critical for getting support.
+
+### PRODINFO Editor Issues
+
+"Invalid PRODINFO file. Please supply a decrypted Prodinfo."
+- Your PRODINFO is encrypted. Use NxNandManager or dump it via Tegraexplorer after dumping the console keys with Lockpick_RCM.
+
+"Verification Failed - Found X critical errors"
+- Check the log output for specific blocks with errors
+- If colors show as uninitialized (000000), this is often normal
+- Body SHA256 errors will prevent Atmosphère from accepting the file
+
+"Serial exceeds 14 characters" or "Invalid ASCII characters"
+- Serial must be exactly 14 alphanumeric characters
+- Common format: XAW followed by 11 digits
+
+PRODINFO Editor menu is grayed out
+- No valid PRODINFO file is loaded
+- Load one via "Get Keys from SD" or Settings → Set Donor PRODINFO
+
+---
+
+## 9. FAQ
+
+### Frequently Asked Questions
+
+Q: Can this fix a completely dead Switch?
+A: Only if the issue is software corruption. Hardware problems require physical repair.
+
+Q: Will I lose my game saves?
+A: Level 1 preserves everything. Level 2 and 3 will erase all user data including saves.
+
+Q: Can I use this on an unmodded Switch?
+A: No, this requires custom firmware and the ability to boot payloads.
+
+Q: Do I need to edit the PRODINFO for Level 3?
+A: No, editing is optional. The process will work with any valid donor PRODINFO. Editing is only needed if you want to customize the serial number, colors, or region.
+
+Q: Will changing the serial number cause issues?
+A: The serial is cosmetic in custom firmware. Your console will work fine, but it won't match the official serial database.
+
+---
+
+## 10. Final Notes
+
+### Important Reminders
+
+Always create a backup before attempting any repairs. This tool is provided as-is with no guarantees. Use at your own risk and only if you understand the consequences.
+
+For support, always include your log file when reporting issues. The development team relies on these logs to help diagnose problems.
+
+Remember that Level 3 repairs permanently affect your console's ability to use official Nintendo services. Only use this as a last resort when your console is otherwise unusable.
+
+### Success Tips
+
+- Ensure stable power throughout the process
+- Use a high-quality USB-C cable for data transfer
+- Don't interrupt the process once started
+- Double-check all file paths before beginning
+- Keep your firmware package up to date
+- When using the PRODINFO Editor, always verify integrity after making changes
+
+This tool has helped countless users recover their consoles when used properly. Take your time, follow the steps carefully, and don't skip the mandatory preparation steps.

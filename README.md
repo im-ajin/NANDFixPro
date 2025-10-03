@@ -41,11 +41,13 @@ NAND Fix Pro provides three distinct levels of repair, from a simple system file
 * **What it does**: Uses your Switch's unique PRODINFO to rebuild the entire NAND using clean, pre-packaged donor partitions.
 * **When to use it**: Use this when multiple partitions (not just SYSTEM) are corrupt, but your console's PRODINFO is still readable and intact.
 * **Outcome**: Your console is restored to a factory-like state. **All user data will be erased.**
+* **New Advanced Option** - Fix USER Partition: This level now includes a separate, advanced function to repair only a corrupt USER partition without touching the rest of the OS. This is a faster alternative if your problem is isolated to user data corruption (e.g., being unable to boot past the setup screen). Like the full rebuild, this process will also erase all user data.
 
 ####  Level 3: Complete Recovery (Last Resort)
 * **What it does**: Reconstructs a complete NAND from scratch using a **donor PRODINFO file** and a pre-built NAND skeleton. It automatically detects the eMMC size (32GB/64GB) to use the correct template.
 * **When to use it**: This is the final option for a completely dead or lost NAND where even the original PRODINFO is gone or corrupt.
 * **Outcome**: A brand new, functional NAND is written to the eMMC. **This is a total overwrite.**
+
 
 ---
 
