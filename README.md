@@ -63,6 +63,59 @@ All other required tools and donor partitions are included in the release packag
 
 ---
 
+## Installation & Windows Defender Notice
+
+### Download and Extract
+
+1. Download the `NAND-Fix-Pro-v2.0.0.exe` file from the [latest release page](https://github.com/sthetix/NANDFixPro/releases).
+2. **Important**: The downloaded `.exe` file is actually a **7-Zip self-extracting archive**. When you run it or extract it, Windows Defender may flag the `NANDFixPro.exe` launcher as a potential threat.
+
+### False Positive Warning
+
+**This is a known false positive detection.** The `NANDFixPro.exe` launcher is flagged because it:
+- Automatically elevates to administrator privileges
+- Installs a portable Python environment
+- Executes system-level operations required for eMMC access
+
+The tool is completely safe and open-source. You can review the source code in this repository at any time.
+
+### How to Exclude from Windows Defender
+
+To use NAND Fix Pro, you'll need to add an exclusion to Windows Defender:
+
+#### Method 1: Add Exclusion Before Extracting (Recommended)
+
+1. Open **Windows Security** by searching for it in the Start menu
+2. Click on **Virus & threat protection**
+3. Under "Virus & threat protection settings", click **Manage settings**
+4. Scroll down to **Exclusions** and click **Add or remove exclusions**
+5. Click **Add an exclusion** and select **Folder**
+6. Navigate to and select the folder where you plan to extract NAND Fix Pro
+7. Now extract the `NAND-Fix-Pro-v2.0.0.exe` to that folder
+
+#### Method 2: Restore Quarantined File
+
+If Windows Defender already quarantined the file:
+
+1. Open **Windows Security**
+2. Go to **Virus & threat protection**
+3. Click on **Protection history**
+4. Find the `NANDFixPro.exe` entry and click on it
+5. Click **Actions** → **Restore**
+6. Then follow **Method 1** above to add the folder to exclusions to prevent future detection
+
+#### Method 3: Using Windows Defender via Settings
+
+1. Press `Windows + I` to open Settings
+2. Go to **Privacy & Security** → **Windows Security**
+3. Click **Virus & threat protection**
+4. Under "Virus & threat protection settings", click **Manage settings**
+5. Scroll to **Exclusions** → **Add or remove exclusions**
+6. Click **Add an exclusion** → **Folder**
+7. Select your NAND Fix Pro installation folder
+
+---
+
 ## Usage
 
 Getting started is designed to be as simple as possible.
