@@ -2514,12 +2514,13 @@ class SwitchGuiApp(tk.Tk):
 
     def _selective_copy_system_contents_level1(self, source_system_path, drive_letter):
         """
-        Level 1: Replace system files while preserving user data
+        Level 1: Delete only registered folder, then merge everything from EmmcHaccGen
+        This overwrites matching files but preserves existing files that aren't in the source
         """
         try:
             self._log("--- Updating system partition...")
             
-            # Delete existing Contents/registered folder
+            # STEP 1: Delete ONLY the existing registered folder
             registered_dest = drive_letter / "Contents" / "registered"
             if registered_dest.exists():
                 self._log("--- Removing existing registered folder...")
@@ -2527,50 +2528,35 @@ class SwitchGuiApp(tk.Tk):
                     self._log("ERROR: Could not remove existing registered folder")
                     return False
             
-            # Copy Contents folder from EmmcHaccGen
-            contents_source = source_system_path / "Contents"
-            contents_dest = drive_letter / "Contents"
-            
-            if contents_source.exists():
-                contents_dest.mkdir(exist_ok=True)
-                for contents_item in contents_source.iterdir():
-                    source_item = contents_item
-                    dest_item = contents_dest / contents_item.name
+            # STEP 2: Recursively copy/merge everything from EmmcHaccGen
+            # This overwrites matching files but leaves other existing files alone
+            def merge_copy(src, dst):
+                for item in src.iterdir():
+                    src_item = item
+                    dst_item = dst / item.name
                     
-                    if source_item.is_dir():
-                        if dest_item.exists():
-                            if not safe_remove_directory(dest_item):
-                                self._log(f"ERROR: Could not remove existing {dest_item}")
-                                return False
-                            shutil.copytree(source_item, dest_item)
-                    else:
-                        shutil.copy2(source_item, dest_item)
-            
-            # Update system save files
-            save_source = source_system_path / "save"
-            save_dest = drive_letter / "save"
-            if save_source.exists():
-                save_dest.mkdir(exist_ok=True)
-                for save_file in save_source.iterdir():
-                    if save_file.is_file():
-                        shutil.copy2(save_file, save_dest / save_file.name)
-            
-            # Handle other top-level items
-            for src_item in source_system_path.iterdir():
-                if src_item.name in ["Contents", "save"]:
-                    continue
-                dest_item = drive_letter / src_item.name
-                if not dest_item.exists():
                     if src_item.is_dir():
-                        shutil.copytree(src_item, dest_item)
+                        dst_item.mkdir(exist_ok=True)
+                        merge_copy(src_item, dst_item)  # Recurse into subdirectories
                     else:
-                        shutil.copy2(src_item, dest_item)
+                        shutil.copy2(src_item, dst_item)  # Overwrite file if exists
             
-            self._log("--- System partition updated successfully")
+            self._log("--- Copying/merging all files from EmmcHaccGen SYSTEM output...")
+            merge_copy(source_system_path, drive_letter)
+            
+            self._log("--- SUCCESS: System partition updated")
             return True
             
         except Exception as e:
             self._log(f"ERROR: Failed to update system partition. {e}")
+            import traceback
+            self._log(traceback.format_exc())
+            return False
+            
+        except Exception as e:
+            self._log(f"ERROR: Failed to update system partition. {e}")
+            import traceback
+            self._log(traceback.format_exc())
             return False
 
     # In class SwitchGuiApp:
